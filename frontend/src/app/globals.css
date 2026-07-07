@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+body {
+  @apply bg-white text-arxiv-dark font-serif;
+}
+
+a {
+  @apply text-arxiv-link hover:text-arxiv-hover underline;
+}
+
+/* Arxiv-style table */
+.arxiv-table {
+  @apply w-full text-sm border-collapse;
+}
+.arxiv-table th {
+  @apply text-left font-sans font-semibold text-arxiv-gray border-b-2 border-arxiv-border py-2 px-3;
+}
+.arxiv-table td {
+  @apply border-b border-arxiv-border py-2 px-3;
+}
+.arxiv-table tr:hover {
+  @apply bg-arxiv-lightgray;
+}
+
+/* Score badges */
+.score-high {
+  @apply text-green-700 bg-green-50 px-2 py-0.5 rounded font-mono text-xs font-medium;
+}
+.score-mid {
+  @apply text-yellow-700 bg-yellow-50 px-2 py-0.5 rounded font-mono text-xs font-medium;
+}
+.score-low {
+  @apply text-red-700 bg-red-50 px-2 py-0.5 rounded font-mono text-xs font-medium;
+}
+
+/* Category tabs */
+.category-tab {
+  @apply inline-block px-3 py-1 text-sm font-sans border border-arxiv-border rounded-full
+         hover:bg-arxiv-red hover:text-white hover:border-arxiv-red
+         transition-colors cursor-pointer;
+}
+.category-tab.active {
+  @apply bg-arxiv-red text-white border-arxiv-red;
+}
