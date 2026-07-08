@@ -151,6 +151,42 @@ async def run_socbench_scoring(
     # Get category metrics
     cat_metrics = get_category_metrics(category_key)
 
+    # Generate "Best for / Good for / Not for" recommendations
+    from socbench.recommendations import generate_recommendations
+
+    auto_scores = {
+        "quality": score.quality.score,
+        "diversity": score.diversity.score,
+        "utility": score.utility.score,
+        "documentation": score.documentation.score,
+        "popularity": score.popularity.score,
+        "freshness": score.freshness.score,
+        "pii_safety": score.pii_safety.score,
+        "contamination": score.contamination_rate,
+    }
+    for cs in score.category_scores:
+        auto_scores[cs.name] = cs.score
+
+    recs = generate_recommendations(dataset_id, auto_scores, score.coverage, tags)
+
+    def _ser_recs(items):
+        return [
+            {
+                "category_key": r.category_key,
+                "label": r.label,
+                "rating": r.rating,
+                "confidence": r.confidence,
+                "reasoning": r.reasoning,
+            }
+            for r in items
+        ]
+
+    recommendations = {
+        "best_for": _ser_recs(recs.best_for),
+        "good_for": _ser_recs(recs.good_for),
+        "not_for": _ser_recs(recs.not_for),
+    }
+
     elapsed = time.time() - start
 
     return {
@@ -209,6 +245,7 @@ async def run_socbench_scoring(
             }
             for p in provenance
         ],
+        "recommendations": recommendations,
         "metadata": {
             "tags": tags,
             "license": metadata.get("license"),

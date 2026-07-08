@@ -7,12 +7,21 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
 from typing import Optional
 
 import typer
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
+
+# Force UTF-8 output so Unicode (→, ★, ✓) renders on Windows consoles.
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 
 app = typer.Typer(
     name="socbench",

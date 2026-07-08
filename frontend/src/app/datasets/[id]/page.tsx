@@ -23,6 +23,14 @@ interface ProvenanceEntry {
   verified: boolean;
 }
 
+interface RecEntry {
+  category_key: string;
+  label: string;
+  rating: number;
+  confidence: number;
+  reasoning: string;
+}
+
 interface DatasetDetail {
   hf_id: string;
   name: string;
@@ -42,6 +50,7 @@ interface DatasetDetail {
   contamination_rate: number;
   provenance: ProvenanceEntry[];
   category_metrics: ScoreDetail[];
+  recommendations?: { best_for: RecEntry[]; good_for: RecEntry[]; not_for: RecEntry[] };
   metadata: { downloads: number; likes: number; license: string };
   training: any;
 }
@@ -182,6 +191,55 @@ export default function DatasetDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Recommendations */}
+      {dataset.recommendations && (
+        <div className="border border-arxiv-border rounded p-4 mb-8">
+          <h3 className="text-sm font-serif font-bold mb-3">Best for — what this dataset is actually good for</h3>
+          {dataset.recommendations.best_for.length > 0 && (
+            <div className="mb-3">
+              <div className="text-[11px] font-sans uppercase tracking-wide text-green-700 mb-1">Best for</div>
+              <div className="flex flex-col gap-1">
+                {dataset.recommendations.best_for.map((r) => (
+                  <div key={r.category_key} className="flex items-center gap-2 text-xs font-sans">
+                    <span className="w-32 shrink-0 font-medium">{r.label}</span>
+                    <span className="text-arxiv-red tracking-tight">{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</span>
+                    <span className="text-arxiv-gray">— {r.reasoning}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {dataset.recommendations.good_for.length > 0 && (
+            <div className="mb-3">
+              <div className="text-[11px] font-sans uppercase tracking-wide text-arxiv-gray mb-1">Good for</div>
+              <div className="flex flex-col gap-1">
+                {dataset.recommendations.good_for.map((r) => (
+                  <div key={r.category_key} className="flex items-center gap-2 text-xs font-sans">
+                    <span className="w-32 shrink-0 font-medium">{r.label}</span>
+                    <span className="text-arxiv-red tracking-tight">{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</span>
+                    <span className="text-arxiv-gray">— {r.reasoning}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {dataset.recommendations.not_for.length > 0 && (
+            <div>
+              <div className="text-[11px] font-sans uppercase tracking-wide text-red-700 mb-1">Not recommended for</div>
+              <div className="flex flex-col gap-1">
+                {dataset.recommendations.not_for.map((r) => (
+                  <div key={r.category_key} className="flex items-center gap-2 text-xs font-sans">
+                    <span className="w-32 shrink-0 font-medium">{r.label}</span>
+                    <span className="text-arxiv-red tracking-tight">{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</span>
+                    <span className="text-arxiv-gray">— {r.reasoning}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Provenance */}
       {dataset.provenance?.length > 0 && (

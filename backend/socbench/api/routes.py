@@ -67,12 +67,48 @@ async def get_dataset(hf_id: str):
 
             from socbench.categories import CATEGORIES
             from socbench.provenance import get_provenance
+            from socbench.recommendations import generate_recommendations
 
             cat_key = lb.category if lb else "pretraining-web"
             cat_label = CATEGORIES[cat_key].label if cat_key in CATEGORIES else cat_key
 
             def block(val):
                 return {"score": val, "details": {}} if val is not None else None
+
+            auto_scores = {
+                "quality": lb.quality if lb else 0.0,
+                "diversity": lb.diversity if lb else 0.0,
+                "utility": lb.utility if lb else 0.0,
+                "documentation": lb.documentation if lb else 0.0,
+                "popularity": lb.popularity if lb else 0.0,
+                "freshness": lb.freshness if lb else 0.0,
+                "pii_safety": lb.pii_safety if lb else 0.0,
+                "contamination": lb.contamination_score if lb else 0.0,
+            }
+            recs = generate_recommendations(
+                ds.hf_id,
+                auto_scores,
+                {},
+                ds.tags or [],
+            )
+
+            def _ser(items):
+                return [
+                    {
+                        "category_key": r.category_key,
+                        "label": r.label,
+                        "rating": r.rating,
+                        "confidence": r.confidence,
+                        "reasoning": r.reasoning,
+                    }
+                    for r in items
+                ]
+
+            recommendations = {
+                "best_for": _ser(recs.best_for),
+                "good_for": _ser(recs.good_for),
+                "not_for": _ser(recs.not_for),
+            }
 
             return {
                 "hf_id": ds.hf_id,
@@ -101,6 +137,7 @@ async def get_dataset(hf_id: str):
                     for p in get_provenance(hf_id)
                 ],
                 "category_metrics": [],
+                "recommendations": recommendations,
                 "metadata": {
                     "downloads": ds.downloads or 0,
                     "likes": ds.likes or 0,
