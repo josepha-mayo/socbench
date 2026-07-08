@@ -152,11 +152,23 @@ def _gopher_quality_check(text: str) -> dict:
     return {"failed": len(issues) > 0, "issues": issues}
 
 
-async def quality_scorer(samples: list[dict], text_key: str = "text") -> ScoreResult:
-    """Run Gopher quality + FineWeb filters + diversity metrics."""
+async def quality_scorer(
+    samples: list[dict],
+    text_key: str = "text",
+    category: str | None = None,
+) -> ScoreResult:
+    """Run Gopher quality + FineWeb filters + diversity metrics.
+
+    Length-based rules (Gopher document length, FineWeb short-line) are
+    appropriate for long-form pretraining text but unfair to instruction /
+    QA / evaluation datasets, which legitimately contain short samples.
+    Those penalties are skipped for non-pretraining categories.
+    """
     texts = [s.get(text_key, "") for s in samples if s.get(text_key)]
     if not texts:
         return ScoreResult(name="quality", score=0.0, warnings=["No text content"])
+
+    is_pretraining = bool(category) and category.startswith("pretraining")
 
     total = len(texts)
     gopher_failures = 0
@@ -168,6 +180,18 @@ async def quality_scorer(samples: list[dict], text_key: str = "text") -> ScoreRe
         gopher = _gopher_repetition_check(text)
         fineweb = _fineweb_filters(text)
         quality = _gopher_quality_check(text)
+
+        # Skip web-text length penalties for non-pretraining data.
+        if not is_pretraining:
+            quality["issues"] = [
+                i for i in quality["issues"] if i not in ("too_short", "too_long")
+            ]
+            fineweb["issues"] = [
+                i for i in fineweb["issues"]
+                if not i.startswith("short_line_frac")
+            ]
+            quality["failed"] = len(quality["issues"]) > 0
+            fineweb["failed"] = len(fineweb["issues"]) > 0
 
         if gopher["failed"]:
             gopher_failures += 1

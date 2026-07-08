@@ -25,23 +25,35 @@ async def fetch_samples(
     sample_size: int = 10_000,
     token: Optional[str] = None,
 ) -> list[dict]:
-    """Fetch sample rows from a HuggingFace dataset via the viewer API."""
+    """Fetch sample rows from a HuggingFace dataset via the viewer API.
+
+    Retries transient HTTP/network failures (the HF viewer API is flaky
+    under load) so scoring doesn't fail on a single dropped request.
+    """
+    import asyncio
+
     headers = {}
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
     samples: list[dict] = []
     async with httpx.AsyncClient(timeout=30) as client:
-        try:
-            resp = await client.get(
-                f"{VIEWER_API}/splits",
-                params={"dataset": dataset_id},
-                headers=headers,
-            )
-            if resp.status_code != 200:
-                return []
-            splits = resp.json().get("splits", [])
-        except Exception:
+        splits: list[dict] = []
+        for attempt in range(3):
+            try:
+                resp = await client.get(
+                    f"{VIEWER_API}/splits",
+                    params={"dataset": dataset_id},
+                    headers=headers,
+                )
+                if resp.status_code == 200:
+                    splits = resp.json().get("splits", [])
+                    break
+            except Exception:
+                pass
+            await asyncio.sleep(2 * (attempt + 1))
+
+        if not splits:
             return []
 
         for split_info in splits[:1]:

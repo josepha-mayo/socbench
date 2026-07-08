@@ -40,6 +40,7 @@ async def run_all_scorers(
     text_key: str = "text",
     expected_language: str = "en",
     is_code: bool = False,
+    category: str | None = None,
 ) -> tuple[float, list[ScoreResult]]:
     """Run all scorers and return composite score + individual results."""
     scorers = [
@@ -48,7 +49,7 @@ async def run_all_scorers(
         token_scorer,
         lambda s, k: language_scorer(s, k, expected_language),
         pii_scorer,
-        quality_scorer,
+        lambda s, k: quality_scorer(s, k, category=category),
     ]
     if is_code:
         scorers.append(code_scorer)

@@ -101,6 +101,72 @@ def compute_coverage(samples: list[str]) -> dict:
     }
 
 
+def _extract_text(sample: object, preferred: str = "text") -> str:
+    """Extract the best textual content from a dataset sample.
+
+    HuggingFace datasets rarely use a single ``text`` field — instruction,
+    QA, code, and evaluation datasets spread content across several keys
+    (``instruction``, ``response``, ``question``, ``answer``...). We fall
+    back to joining all string-valued fields so scorers actually see content.
+    """
+    if isinstance(sample, str):
+        return sample
+    if not isinstance(sample, dict):
+        return str(sample) if sample is not None else ""
+
+    if preferred in sample and isinstance(sample[preferred], str) and sample[preferred].strip():
+        return sample[preferred]
+
+    content_keys = (
+        "text", "content", "instruction", "response", "question", "answer",
+        "output", "document", "sentence", "code", "source", "context",
+        "premise", "hypothesis", "dialogue", "completion",
+    )
+    for k in content_keys:
+        v = sample.get(k)
+        if isinstance(v, str) and v.strip():
+            return v
+
+    parts: list[str] = []
+    for v in sample.values():
+        if isinstance(v, str) and v.strip():
+            parts.append(v)
+        elif isinstance(v, list):
+            joined = " ".join(str(x) for x in v if isinstance(x, (str, int, float)))
+            if joined.strip():
+                parts.append(joined)
+    return "\n".join(parts)
+
+
+def _robust_diversity(samples: list[dict], text_key: str) -> tuple[float, dict]:
+    """Lexical + repetition diversity that works for all dataset forms.
+
+    Type-token ratio (normalized), repetition health (unique-line fraction),
+    and token-length spread. Avoids collapsing to 0 for short/templated
+    instruction or QA data.
+    """
+    texts = [s.get(text_key, "") for s in samples if s.get(text_key)]
+    if not texts:
+        return 0.0, {}
+
+    tokens = [t.lower() for txt in texts for t in txt.split() if t.strip()]
+    if not tokens:
+        return 0.0, {}
+
+    ttr = len(set(tokens)) / len(tokens)
+    ttr_norm = min(ttr * 4.0, 1.0)  # ttr ~0.25 -> 1.0; penalizes extreme repetition
+
+    lines = [l.strip() for txt in texts for l in txt.split("\n") if l.strip()]
+    rep_health = 1.0 - (1.0 - len(set(lines)) / len(lines)) if lines else 1.0
+
+    score = min(0.6 * ttr_norm + 0.4 * rep_health, 1.0)
+    return score, {
+        "type_token_ratio": round(ttr, 4),
+        "repetition_health": round(rep_health, 4),
+        "lexical_diversity": round(score, 4),
+    }
+
+
 async def compute_multi_dimension_score(
     dataset_id: str,
     samples: list[dict],
@@ -115,8 +181,15 @@ async def compute_multi_dimension_score(
     cat = CATEGORIES.get(category_key, CATEGORIES["pretraining-web"])
     cat_metrics = get_category_metrics(category_key)
 
+    # Normalize samples so every scorer sees content under `text_key`.
+    norm_samples = [{"__text": _extract_text(s, text_key)} for s in samples]
+    for ns, s in zip(norm_samples, samples):
+        ns[text_key] = ns.pop("__text")
+
     # Run all automated scorers
-    _, scorer_results = await run_all_scorers(samples, text_key=text_key)
+    _, scorer_results = await run_all_scorers(
+        norm_samples, text_key=text_key, category=category_key
+    )
 
     # Map scorers to dimensions
     scorer_map: dict[str, ScoreResult] = {r.name: r for r in scorer_results}
@@ -136,18 +209,20 @@ async def compute_multi_dimension_score(
         },
     )
 
-    # Diversity dimension
-    diversity_score = scorer_map.get("quality", ScoreResult(name="q", score=0)).details.get("diversity", 0)
+    # Diversity dimension — robust lexical + repetition + length-spread measure.
     token_details = scorer_map.get("tokens", ScoreResult(name="t", score=0)).details
     token_spread = token_details.get("diversity_score", 0)
+    div_val, div_details = _robust_diversity(samples, text_key)
+    diversity_score = max(div_val, 0.0)
+    if token_spread:
+        diversity_score = 0.7 * div_val + 0.3 * token_spread
 
     diversity = DimensionScore(
         name="diversity",
-        score=(diversity_score + token_spread) / 2,
+        score=diversity_score,
         details={
-            "text_diversity": diversity_score,
+            **div_details,
             "token_spread": token_spread,
-            "unique_words_ratio": diversity_score,
         },
     )
 
@@ -197,7 +272,7 @@ async def compute_multi_dimension_score(
     )
 
     # Coverage
-    texts = [s.get(text_key, "") for s in samples if s.get(text_key)]
+    texts = [s.get(text_key, "") for s in norm_samples if s.get(text_key)]
     coverage = compute_coverage(texts)
 
     # Contamination rate (placeholder — computed separately)
