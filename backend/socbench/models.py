@@ -114,7 +114,15 @@ class LeaderboardRow(Base):
     dataset_id: Mapped[int] = mapped_column(
         ForeignKey("datasets.id"), unique=True, nullable=False
     )
+    category: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     auto_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    quality: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    diversity: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    utility: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    documentation: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    popularity: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    freshness: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    pii_safety: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     training_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     contamination_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     combined_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)

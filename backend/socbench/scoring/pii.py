@@ -24,14 +24,24 @@ SEVERITY_WEIGHTS = {
 }
 
 
-async def pii_scorer(samples: list[dict], text_key: str = "text") -> ScoreResult:
-    """Detect PII density and compute safety score."""
+async def pii_scorer(samples: list[dict], text_key: str = "text", use_presidio: bool = False) -> ScoreResult:
+    """Detect PII density and compute safety score.
+
+    Default: regex-based (fast, no model download).
+    Set use_presidio=True for presidio-analyzer (requires 400MB spaCy model download).
+    """
+    if use_presidio:
+        return await _presidio_pii(samples, text_key)
+    return await _regex_pii(samples, text_key)
+
+
+async def _presidio_pii(samples: list[dict], text_key: str) -> ScoreResult:
+    """Full presidio-analyzer PII detection (requires spaCy en_core_web_lg)."""
     try:
         from presidio_analyzer import AnalyzerEngine
-
         analyzer = AnalyzerEngine()
-    except (ImportError, OSError):
-        return await _regex_pii(samples, text_key)
+    except (ImportError, OSError) as e:
+        return ScoreResult(name="pii", score=0.5, warnings=[f"presidio unavailable: {e}"], details={"method": "presidio_fallback"})
 
     texts = [s.get(text_key, "") for s in samples if s.get(text_key)]
     if not texts:
@@ -47,45 +57,25 @@ async def pii_scorer(samples: list[dict], text_key: str = "text") -> ScoreResult
         if results:
             samples_with_pii += 1
         for r in results:
-            pii_counts_by_type[r.entity_type] = (
-                pii_counts_by_type.get(r.entity_type, 0) + 1
-            )
+            pii_counts_by_type[r.entity_type] = pii_counts_by_type.get(r.entity_type, 0) + 1
             total_pii_entities += 1
 
-    # PII rate
     pii_rate = samples_with_pii / total if total > 0 else 0.0
-
-    # Weighted PII score: severity-weighted density
-    weighted_sum = 0.0
-    for pii_type, count in pii_counts_by_type.items():
-        weight = SEVERITY_WEIGHTS.get(pii_type, 0.5)
-        weighted_sum += count * weight
-
-    # Normalize: 0 weighted sum = score 1.0, high weighted sum = low score
-    # Scale: 0.01 weighted entities per sample = score 0.5
+    weighted_sum = sum(count * SEVERITY_WEIGHTS.get(pii_type, 0.5) for pii_type, count in pii_counts_by_type.items())
     density = weighted_sum / total if total > 0 else 0.0
     score = max(0.0, 1.0 - (density / 0.01))
 
     warnings = []
     if pii_rate > 0.05:
-        warnings.append(f"High PII rate: {pii_rate:.1%} of samples contain PII")
+        warnings.append(f"High PII rate: {pii_rate:.1%}")
     if "CREDIT_CARD" in pii_counts_by_type:
-        warnings.append(
-            f"Credit card numbers detected: {pii_counts_by_type['CREDIT_CARD']}"
-        )
+        warnings.append(f"Credit card numbers: {pii_counts_by_type['CREDIT_CARD']}")
     if "US_SSN" in pii_counts_by_type:
-        warnings.append(f"SSNs detected: {pii_counts_by_type['US_SSN']}")
+        warnings.append(f"SSNs: {pii_counts_by_type['US_SSN']}")
 
     return ScoreResult(
-        name="pii",
-        score=score,
-        details={
-            "pii_rate": round(pii_rate, 4),
-            "total_pii_entities": total_pii_entities,
-            "pii_by_type": pii_counts_by_type,
-            "weighted_density": round(density, 6),
-            "total_samples": total,
-        },
+        name="pii", score=score,
+        details={"pii_rate": round(pii_rate, 4), "total_pii_entities": total_pii_entities, "pii_by_type": pii_counts_by_type, "weighted_density": round(density, 6), "total_samples": total, "method": "presidio"},
         warnings=warnings,
     )
 

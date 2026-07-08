@@ -67,21 +67,28 @@ export default function LeaderboardPage() {
   const [category, setCategory] = useState("All");
 
   useEffect(() => {
-    const mockData: Dataset[] = [
-      { rank: 1, hf_id: "bigcode/starcoderdata", name: "starcoderdata", tags: ["code"], quality: 0.87, diversity: 0.72, utility: 0.85, documentation: 0.90, popularity: 0.72, freshness: 0.85, contamination: 0.02, downloads: 45000, likes: 180, category: "pretraining-code" },
-      { rank: 2, hf_id: "teknium/OpenHermes-2.5", name: "OpenHermes-2.5", tags: ["instruction", "sft"], quality: 0.84, diversity: 0.78, utility: 0.91, documentation: 0.95, popularity: 0.88, freshness: 0.90, contamination: 0.03, downloads: 89000, likes: 220, category: "posttraining-sft" },
-      { rank: 3, hf_id: "HuggingFaceFW/fineweb", name: "fineweb", tags: ["web", "pretraining"], quality: 0.82, diversity: 0.91, utility: 0.80, documentation: 0.88, popularity: 0.98, freshness: 0.95, contamination: 0.02, downloads: 450000, likes: 890, category: "pretraining-web" },
-      { rank: 4, hf_id: "bigcode/the-stack-v2", name: "the-stack-v2", tags: ["code", "pretraining"], quality: 0.78, diversity: 0.89, utility: 0.76, documentation: 0.85, popularity: 0.96, freshness: 0.88, contamination: 0.04, downloads: 230000, likes: 520, category: "pretraining-code" },
-      { rank: 5, hf_id: "ise-uiuc/Magicoder-OSS-Instruct-110K", name: "OSS-Instruct-110K", tags: ["code", "instruction"], quality: 0.81, diversity: 0.74, utility: 0.88, documentation: 0.82, popularity: 0.55, freshness: 0.80, contamination: 0.03, downloads: 32000, likes: 95, category: "posttraining-sft" },
-      { rank: 6, hf_id: "nvidia/Nemotron-SFT-OpenCode-v1", name: "Nemotron-SFT-OpenCode", tags: ["code", "sft"], quality: 0.80, diversity: 0.70, utility: 0.87, documentation: 0.80, popularity: 0.45, freshness: 0.85, contamination: 0.05, downloads: 18000, likes: 65, category: "posttraining-sft" },
-      { rank: 7, hf_id: "openai/openai_humaneval", name: "humaneval", tags: ["code", "evaluation"], quality: 0.91, diversity: 0.55, utility: 0.95, documentation: 0.88, popularity: 0.94, freshness: 0.70, contamination: 0.0, downloads: 120000, likes: 340, category: "evaluation" },
-      { rank: 8, hf_id: "databricks/databricks-dolly-15k", name: "dolly-15k", tags: ["instruction"], quality: 0.82, diversity: 0.65, utility: 0.85, documentation: 0.92, popularity: 0.91, freshness: 0.75, contamination: 0.03, downloads: 150000, likes: 280, category: "posttraining-sft" },
-      { rank: 9, hf_id: "livecodebench/code_generation", name: "livecodebench", tags: ["code", "evaluation"], quality: 0.85, diversity: 0.60, utility: 0.92, documentation: 0.85, popularity: 0.50, freshness: 0.98, contamination: 0.01, downloads: 25000, likes: 88, category: "evaluation" },
-      { rank: 10, hf_id: "princeton-nlp/SWE-bench", name: "SWE-bench", tags: ["code", "agent"], quality: 0.88, diversity: 0.58, utility: 0.93, documentation: 0.90, popularity: 0.85, freshness: 0.82, contamination: 0.02, downloads: 78000, likes: 310, category: "evaluation" },
-    ];
-    setDatasets(mockData);
-    setLoading(false);
-  }, []);
+    const categoryParam = category === "All" ? "" : categorySlug(category);
+    fetch(`/api/leaderboard?category=${encodeURIComponent(categoryParam)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        setDatasets(data as Dataset[]);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [category]);
+
+  function categorySlug(cat: string): string {
+    const map: Record<string, string> = {
+      "Pretraining": "pretraining",
+      "Post-Training": "posttraining",
+      "Code": "code",
+      "Instruction/SFT": "sft",
+      "Agent": "agent",
+      "Evaluation": "evaluation",
+      "Multimodal": "multimodal",
+    };
+    return map[cat] || "";
+  }
 
   const filtered = category === "All" ? datasets : datasets.filter(ds => {
     const cat = ds.category || "";

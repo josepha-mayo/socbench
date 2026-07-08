@@ -34,16 +34,14 @@ export default function DiscoverPage() {
   const [filter, setFilter] = useState("all");
 
   useEffect(() => {
-    const mock: DiscoveredDataset[] = [
-      { hf_id: "BAAI/Infinity-Instruct", name: "Infinity-Instruct", downloads: 89000, likes: 310, trending_score: 95.0, languages: ["en","zh"], tags: ["instruction","multilingual"], created_at: "2026-06-20", qualified: true, category: "posttraining-sft", category_label: "Instruction" },
-      { hf_id: "HuggingFaceFW/fineweb-edu", name: "fineweb-edu", downloads: 450000, likes: 890, trending_score: 99.0, languages: ["en"], tags: ["education","web"], created_at: "2026-06-01", qualified: true, category: "pretraining-web", category_label: "Web" },
-      { hf_id: "Open-Orca/OpenOrca", name: "OpenOrca", downloads: 210000, likes: 480, trending_score: 88.0, languages: ["en"], tags: ["instruction","reasoning"], created_at: "2026-05-10", qualified: true, category: "posttraining-sft", category_label: "Instruction" },
-      { hf_id: "nvidia/CodeContests", name: "CodeContests", downloads: 34000, likes: 120, trending_score: 42.0, languages: ["en"], tags: ["code","reasoning"], created_at: "2026-04-20", qualified: true, category: "evaluation", category_label: "Eval" },
-      { hf_id: "mlabonne/guanaco-llama2-1k", name: "guanaco-llama2-1k", downloads: 12500, likes: 45, trending_score: 8.2, languages: ["en"], tags: ["instruction"], created_at: "2026-06-15", qualified: true, category: "posttraining-sft", category_label: "Instruction" },
-      { hf_id: "some-user/tiny-test", name: "tiny-test", downloads: 5, likes: 0, trending_score: 0.1, languages: ["en"], tags: ["generation"], created_at: "2026-07-01", qualified: false, category: "pretraining-web", category_label: "Web" },
-    ];
-    setDatasets(mock);
-    setLoading(false);
+    setLoading(true);
+    fetch("/api/discover")
+      .then((r) => r.json())
+      .then((data) => {
+        setDatasets(data as DiscoveredDataset[]);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, []);
 
   const filtered = datasets.filter((ds) => {

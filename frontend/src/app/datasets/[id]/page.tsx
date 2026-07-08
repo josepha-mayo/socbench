@@ -111,35 +111,14 @@ export default function DatasetDetailPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const mock: DatasetDetail = {
-      hf_id: hfId,
-      name: hfId.split("/").pop() || hfId,
-      category: "pretraining-code",
-      category_label: "Code (Pretraining)",
-      description: "High-quality code training dataset.",
-      license: "mit",
-      tags: ["code", "pretraining"],
-      quality: { score: 0.87, details: { gopher_pass: 0.91, dedup: 0.92, format: 0.88 } },
-      diversity: { score: 0.72, details: { text_diversity: 0.72, token_spread: 0.68 } },
-      utility: { score: 0.85, details: { schema_conformance: 0.95 } },
-      documentation: { score: 0.90, details: { has_card: true, has_license: true } },
-      popularity: { score: 0.72, details: { downloads: 45000, likes: 180 } },
-      freshness: { score: 0.85, details: {} },
-      pii_safety: { score: 0.98, details: { pii_rate: 0.002 } },
-      coverage: { domain_distribution: { code: 0.82, general: 0.14, math: 0.04 } },
-      contamination_rate: 0.02,
-      provenance: [
-        { model_name: "StarCoder (15.5B)", paper_title: "StarCoder: may the source be with you!", paper_url: "https://arxiv.org/abs/2305.06161", verified: true },
-      ],
-      category_metrics: [
-        { name: "parse_rate", score: 0.94, details: {}, warnings: [] },
-        { name: "language_coverage", score: 0.78, details: {}, warnings: [] },
-      ],
-      metadata: { downloads: 45000, likes: 180, license: "mit" },
-      training: { final_val_loss: 3.21, loss_curve: Array.from({ length: 30 }, (_, i) => 5.5 - (i / 30) * 2.3 + Math.random() * 0.1), convergence_steps: 12 },
-    };
-    setDataset(mock);
-    setLoading(false);
+    setLoading(true);
+    fetch(`/api/datasets/${encodeURIComponent(hfId)}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data) => {
+        setDataset(data as DatasetDetail);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, [hfId]);
 
   if (loading) return <p className="text-arxiv-gray font-sans">Loading...</p>;
@@ -180,7 +159,7 @@ export default function DatasetDetailPage() {
           <h3 className="text-sm font-serif font-bold mb-2">Domain Coverage</h3>
           <DomainBar domains={dataset.coverage.domain_distribution} />
           <div className="flex flex-wrap gap-2 mt-2 text-[10px] font-mono text-arxiv-gray">
-            {Object.entries(dataset.coverage.domain_distribution).slice(0, 8).map(([k, v]) => (
+            {Object.entries(dataset.coverage.domain_distribution as Record<string, number>).slice(0, 8).map(([k, v]) => (
               <span key={k}>{k}: {(v * 100).toFixed(0)}%</span>
             ))}
           </div>

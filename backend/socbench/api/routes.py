@@ -57,44 +57,65 @@ async def get_dataset(hf_id: str):
         stmt = select(DatasetRow).where(DatasetRow.hf_id == hf_id)
         result = await session.execute(stmt)
         ds = result.scalar_one_or_none()
-        if not ds:
-            raise HTTPException(404, f"Dataset {hf_id} not found")
 
-        scores_stmt = select(ScoreRow).where(ScoreRow.dataset_id == ds.id)
-        scores = (await session.execute(scores_stmt)).scalars().all()
+        if ds:
+            lb_stmt = select(LeaderboardRow).where(LeaderboardRow.dataset_id == ds.id)
+            lb = (await session.execute(lb_stmt)).scalar_one_or_none()
 
-        cont_stmt = select(ContaminationRow).where(ContaminationRow.dataset_id == ds.id)
-        contamination = (await session.execute(cont_stmt)).scalars().all()
+            train_stmt = select(TrainingRunRow).where(TrainingRunRow.dataset_id == ds.id)
+            training = (await session.execute(train_stmt)).scalar_one_or_none()
 
-        train_stmt = select(TrainingRunRow).where(TrainingRunRow.dataset_id == ds.id)
-        training = (await session.execute(train_stmt)).scalar_one_or_none()
+            from socbench.categories import CATEGORIES
+            from socbench.provenance import get_provenance
 
-        return {
-            "hf_id": ds.hf_id,
-            "name": ds.name,
-            "description": ds.description,
-            "license": ds.license,
-            "languages": ds.languages,
-            "tags": ds.tags,
-            "row_count": ds.row_count,
-            "downloads": ds.downloads,
-            "likes": ds.likes,
-            "scores": [
-                {"name": s.scorer_name, "score": s.score, "details": s.details, "warnings": s.warnings}
-                for s in scores
-            ],
-            "contamination": [
-                {"benchmark": c.benchmark_name, "overlap_rate": c.overlap_rate,
-                 "details": {"overlap_count": c.overlap_count, "total_eval": c.total_eval}}
-                for c in contamination
-            ],
-            "training": {
-                "final_val_loss": training.final_val_loss,
-                "loss_curve": training.loss_curve,
-                "convergence_steps": training.convergence_steps,
-                "eval_scores": training.eval_scores,
-            } if training else None,
-        }
+            cat_key = lb.category if lb else "pretraining-web"
+            cat_label = CATEGORIES[cat_key].label if cat_key in CATEGORIES else cat_key
+
+            def block(val):
+                return {"score": val, "details": {}} if val is not None else None
+
+            return {
+                "hf_id": ds.hf_id,
+                "name": ds.name,
+                "description": ds.description,
+                "license": ds.license,
+                "tags": ds.tags,
+                "category": cat_key,
+                "category_label": cat_label,
+                "quality": block(lb.quality if lb else None),
+                "diversity": block(lb.diversity if lb else None),
+                "utility": block(lb.utility if lb else None),
+                "documentation": block(lb.documentation if lb else None),
+                "popularity": block(lb.popularity if lb else None),
+                "freshness": block(lb.freshness if lb else None),
+                "pii_safety": block(lb.pii_safety if lb else None),
+                "coverage": {},
+                "contamination_rate": lb.contamination_score if lb else 0.0,
+                "provenance": [
+                    {
+                        "model_name": p.model_name,
+                        "paper_title": p.paper_title,
+                        "paper_url": p.paper_url,
+                        "verified": p.verified,
+                    }
+                    for p in get_provenance(hf_id)
+                ],
+                "category_metrics": [],
+                "metadata": {
+                    "downloads": ds.downloads or 0,
+                    "likes": ds.likes or 0,
+                    "license": ds.license,
+                },
+                "training": {
+                    "final_val_loss": training.final_val_loss,
+                    "loss_curve": training.loss_curve,
+                    "convergence_steps": training.convergence_steps,
+                    "eval_scores": training.eval_scores,
+                } if training else None,
+            }
+
+    # Not in DB yet — perform a live on-demand examination.
+    return await run_socbench_scoring(hf_id)
 
 
 @router.post("/datasets/{hf_id:path}/score")
@@ -109,12 +130,11 @@ async def get_leaderboard(
     category: Optional[str] = Query(None),
 ):
     async with async_session_factory() as session:
-        stmt = (
-            select(LeaderboardRow)
-            .order_by(LeaderboardRow.combined_score.desc().nullslast())
-            .offset(offset)
-            .limit(limit)
-        )
+        stmt = select(LeaderboardRow)
+        if category:
+            stmt = stmt.where(LeaderboardRow.category.like(f"%{category}%"))
+        stmt = stmt.order_by(LeaderboardRow.combined_score.desc().nullslast())
+        stmt = stmt.offset(offset).limit(limit)
         result = await session.execute(stmt)
         entries = result.scalars().all()
 
@@ -128,13 +148,16 @@ async def get_leaderboard(
                     "hf_id": ds.hf_id,
                     "name": ds.name,
                     "tags": ds.tags,
-                    "quality": entry.auto_score,
-                    "diversity": entry.auto_score,
-                    "utility": entry.auto_score,
-                    "documentation": entry.auto_score,
-                    "popularity": ds.downloads,
-                    "freshness": entry.auto_score,
+                    "category": entry.category if hasattr(entry, "category") else None,
+                    "quality": entry.quality,
+                    "diversity": entry.diversity,
+                    "utility": entry.utility,
+                    "documentation": entry.documentation,
+                    "popularity": entry.popularity,
+                    "freshness": entry.freshness,
+                    "pii_safety": entry.pii_safety,
                     "contamination": entry.contamination_score,
+                    "combined_score": entry.combined_score,
                     "downloads": ds.downloads,
                     "likes": ds.likes,
                 })
@@ -150,6 +173,7 @@ async def discover_datasets(
 ):
     """Run HF discovery scan."""
     from socbench.discovery.scanner import scan_datasets
+    from socbench.categories import classify_dataset, CATEGORIES
 
     datasets = await scan_datasets(
         search=search,
@@ -159,10 +183,8 @@ async def discover_datasets(
 
     qualified = []
     for ds in datasets:
-        if ds.private or ds.gated:
-            continue
-        if ds.downloads < 1000 or ds.likes < 10:
-            continue
+        cat_key = classify_dataset(ds.tags)
+        is_qualified = not (ds.private or ds.gated) and ds.downloads >= 1000 and ds.likes >= 10
         qualified.append({
             "hf_id": ds.hf_id,
             "name": ds.name,
@@ -173,7 +195,9 @@ async def discover_datasets(
             "languages": ds.languages,
             "created_at": ds.created_at,
             "last_modified": ds.last_modified,
-            "qualified": True,
+            "category": cat_key,
+            "category_label": CATEGORIES[cat_key].label if cat_key in CATEGORIES else cat_key,
+            "qualified": is_qualified,
         })
     return qualified
 

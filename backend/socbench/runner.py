@@ -47,7 +47,8 @@ async def fetch_samples(
         for split_info in splits[:1]:
             split_name = split_info.get("split", "train")
             config = split_info.get("config", "default")
-            num_rows = min(split_info.get("num_rows", 0), sample_size)
+            num_rows = split_info.get("num_rows") or sample_size
+            num_rows = min(num_rows, sample_size)
 
             offset = 0
             batch_size = 100
