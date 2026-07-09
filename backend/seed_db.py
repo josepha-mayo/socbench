@@ -27,11 +27,22 @@ SEED_DATASETS = [
     "databricks/databricks-dolly-15k",      # posttraining-sft
     "Anthropic/hh-rlhf",                     # posttraining-preference
     "Skylion007/openwebtext",                # pretraining-web
-    "codeparrot/github-code-clean",          # pretraining-code
     "openai/gsm8k",                          # task-qa / evaluation
     "stanfordnlp/sst2",                      # task-classification
     "tatsu-lab/alpaca",                      # posttraining-sft
-    "HuggingFaceH4/ultrafeedback_binarized", # posttraining-preference
+    # Expanded coverage across categories
+    "teknium/OpenHermes-2.5",                # posttraining-sft (large)
+    "bigcode/the-stack-smol",                # pretraining-code
+    "openai/openai_humaneval",               # evaluation (code)
+    "cais/mmlu",                             # evaluation (knowledge)
+    "Open-Orca/OpenOrca",                    # posttraining-reasoning/sft
+    "nvidia/HelpSteer2",                     # posttraining-preference
+    "gsm8k",                                 # fallback
+    "HuggingFaceM4/the_cauldron",            # multimodal (VLM)
+    "lmms-lab/LLaVA-OneVision-Data",         # multimodal
+    "cnn_dailymail",                         # task-summarization
+    "wmt14",                                 # task-translation
+    "squad",                                 # task-qa
 ]
 
 DIM_KEYS = [
@@ -56,16 +67,25 @@ async def seed() -> None:
     await init_db()
 
     async with async_session_factory() as session:
-        for ds_id in SEED_DATASETS:
+        for idx, ds_id in enumerate(SEED_DATASETS):
+            if idx > 0:
+                await asyncio.sleep(8)  # avoid HF viewer API rate-limiting
             print(f"Examining {ds_id} ...", flush=True)
-            try:
-                result = await run_socbench_scoring(ds_id, sample_size=2000)
-            except Exception as exc:  # noqa: BLE001
-                print(f"  skipped {ds_id}: {exc}", flush=True)
-                continue
 
-            if "error" in result:
-                print(f"  skipped {ds_id}: {result['error']}", flush=True)
+            result = None
+            for attempt in range(3):
+                try:
+                    result = await run_socbench_scoring(ds_id, sample_size=2000)
+                except Exception as exc:  # noqa: BLE001
+                    print(f"  attempt {attempt+1} error {ds_id}: {exc}", flush=True)
+                    result = None
+                if result and "error" not in result:
+                    break
+                await asyncio.sleep(10 * (attempt + 1))
+
+            if not result or "error" in result:
+                reason = result.get("error") if result else "no result"
+                print(f"  skipped {ds_id}: {reason}", flush=True)
                 continue
 
             meta = result.get("metadata", {})

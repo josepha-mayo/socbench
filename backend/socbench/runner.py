@@ -91,6 +91,19 @@ async def fetch_samples(
     return samples
 
 
+def _license_from_tags(tags: list[str], card_data: dict) -> Optional[str]:
+    """Extract a license identifier from HF tags or card data."""
+    for t in tags:
+        if isinstance(t, str) and t.startswith("license:"):
+            return t.split(":", 1)[1]
+    lic = card_data.get("license")
+    if isinstance(lic, list) and lic:
+        return lic[0]
+    if isinstance(lic, str):
+        return lic
+    return None
+
+
 async def fetch_metadata(
     dataset_id: str,
     token: Optional[str] = None,
@@ -103,22 +116,115 @@ async def fetch_metadata(
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.get(
             f"https://huggingface.co/api/datasets/{dataset_id}",
+            params={"full": "true"},
             headers=headers,
         )
         if resp.status_code == 200:
             data = resp.json()
+            tags = data.get("tags", []) or []
+            card_data = data.get("cardData", {}) or {}
+            description = data.get("description", "") or ""
             return {
-                "tags": data.get("tags", []) or [],
-                "license": data.get("tags", []) or [],
+                "tags": tags,
+                "license": _license_from_tags(tags, card_data),
                 "downloads": data.get("downloads", 0) or 0,
                 "likes": data.get("likes", 0) or 0,
                 "last_modified": data.get("lastModified"),
                 "created_at": data.get("createdAt"),
-                "description": data.get("description", ""),
+                "description": description,
+                "card_data": card_data,
+                "has_card": bool(card_data),
                 "gated": bool(data.get("gated")),
                 "private": bool(data.get("private")),
             }
         return {}
+
+
+def compute_documentation_score(metadata: dict) -> tuple[float, dict]:
+    """Score dataset card completeness from real HF metadata."""
+    card = metadata.get("card_data", {}) or {}
+    description = metadata.get("description", "") or ""
+    tags = metadata.get("tags", []) or []
+    has_license = metadata.get("license") is not None
+
+    checks = {
+        "has_card": bool(card),
+        "has_description": len(description.strip()) >= 50,
+        "has_license": has_license,
+        "has_tags": len(tags) >= 3,
+        "has_task_categories": any(
+            isinstance(t, str) and t.startswith("task_categories:") for t in tags
+        ),
+        "has_language": any(
+            isinstance(t, str) and t.startswith("language:") for t in tags
+        )
+        or bool(card.get("language")),
+    }
+    weights = {
+        "has_card": 0.25,
+        "has_description": 0.25,
+        "has_license": 0.20,
+        "has_tags": 0.10,
+        "has_task_categories": 0.10,
+        "has_language": 0.10,
+    }
+    score = sum(weights[k] for k, v in checks.items() if v)
+    return round(score, 4), checks
+
+
+def compute_freshness_score(metadata: dict) -> tuple[float, dict]:
+    """Score recency from real last-modified date (decay over ~2 years)."""
+    from datetime import datetime, timezone
+
+    last_modified = metadata.get("last_modified") or metadata.get("created_at")
+    if not last_modified:
+        return 0.5, {"reason": "no date available"}
+
+    try:
+        dt = datetime.fromisoformat(str(last_modified).replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return 0.5, {"reason": "unparseable date"}
+
+    now = datetime.now(timezone.utc)
+    age_days = max((now - dt).days, 0)
+
+    # Linear decay: <=30d -> 1.0, >=730d (2y) -> 0.2
+    if age_days <= 30:
+        score = 1.0
+    elif age_days >= 730:
+        score = 0.2
+    else:
+        score = 1.0 - 0.8 * ((age_days - 30) / 700)
+
+    return round(score, 4), {
+        "last_modified": last_modified,
+        "age_days": age_days,
+    }
+
+
+def compute_popularity_score(metadata: dict) -> tuple[float, dict]:
+    """Score community adoption from real downloads + likes (log-scaled)."""
+    import math
+
+    downloads = metadata.get("downloads", 0) or 0
+    likes = metadata.get("likes", 0) or 0
+
+    # log10(downloads): 1K->3, 100K->5, 10M->7. Normalize 3..7 -> 0..1
+    dl_score = 0.0
+    if downloads > 0:
+        dl_score = max(0.0, min((math.log10(downloads) - 3) / 4, 1.0))
+    # log10(likes): 10->1, 1000->3. Normalize 1..3 -> 0..1
+    like_score = 0.0
+    if likes > 0:
+        like_score = max(0.0, min((math.log10(likes) - 1) / 2, 1.0))
+
+    score = 0.6 * dl_score + 0.4 * like_score
+    return round(score, 4), {
+        "downloads": downloads,
+        "likes": likes,
+        "download_score": round(dl_score, 4),
+        "like_score": round(like_score, 4),
+    }
 
 
 async def run_socbench_scoring(
@@ -163,6 +269,11 @@ async def run_socbench_scoring(
     # Get category metrics
     cat_metrics = get_category_metrics(category_key)
 
+    # Compute supporting dimensions from REAL HF metadata (not placeholders)
+    doc_score, doc_details = compute_documentation_score(metadata)
+    fresh_score, fresh_details = compute_freshness_score(metadata)
+    pop_score, pop_details = compute_popularity_score(metadata)
+
     # Generate "Best for / Good for / Not for" recommendations
     from socbench.recommendations import generate_recommendations
 
@@ -170,9 +281,9 @@ async def run_socbench_scoring(
         "quality": score.quality.score,
         "diversity": score.diversity.score,
         "utility": score.utility.score,
-        "documentation": score.documentation.score,
-        "popularity": score.popularity.score,
-        "freshness": score.freshness.score,
+        "documentation": doc_score,
+        "popularity": pop_score,
+        "freshness": fresh_score,
         "pii_safety": score.pii_safety.score,
         "contamination": score.contamination_rate,
     }
@@ -218,19 +329,16 @@ async def run_socbench_scoring(
             "details": score.utility.details,
         },
         "documentation": {
-            "score": score.documentation.score,
-            "details": score.documentation.details,
+            "score": doc_score,
+            "details": doc_details,
         },
         "popularity": {
-            "score": score.popularity.score,
-            "details": {
-                "downloads": metadata.get("downloads", 0),
-                "likes": metadata.get("likes", 0),
-            },
+            "score": pop_score,
+            "details": pop_details,
         },
         "freshness": {
-            "score": score.freshness.score,
-            "details": score.freshness.details,
+            "score": fresh_score,
+            "details": fresh_details,
         },
         "pii_safety": {
             "score": score.pii_safety.score,

@@ -172,7 +172,20 @@ def classify_dataset(tags: list[str], description: str = "") -> str:
     """
     tag_list = [t.lower() for t in tags]
 
-    # Check for specific tags first
+    # Evaluation / benchmark datasets take priority (they may also carry
+    # code/math/task tags, but their purpose is measuring capability).
+    if any("benchmark" in t or "eval" in t for t in tag_list):
+        return "evaluation"
+
+    # Multimodal
+    if any(
+        "image-text" in t or "visual-question" in t or "vqa" in t
+        or "modality:image" in t or "modality:video" in t or "modality:audio" in t
+        for t in tag_list
+    ):
+        return "multimodal"
+
+    # Check for specific tags
     if any("code" in t for t in tag_list):
         return "pretraining-code"
     if any("math" in t for t in tag_list):
@@ -189,7 +202,18 @@ def classify_dataset(tags: list[str], description: str = "") -> str:
         return "posttraining-sft"
     if any("reasoning" in t or "cot" in t or "chain-of-thought" in t for t in tag_list):
         return "posttraining-reasoning"
-    if any("multilingual" in t for t in tag_list):
+    if any("summarization" in t for t in tag_list):
+        return "task-summarization"
+    if any("translation" in t for t in tag_list):
+        return "task-translation"
+    if any("question-answering" in t for t in tag_list):
+        return "task-qa"
+    if any("classification" in t for t in tag_list):
+        return "task-classification"
+    # "multilingual" but avoid matching "multilinguality:monolingual"
+    if any(
+        "multilingual" in t and "monolingual" not in t for t in tag_list
+    ):
         return "pretraining-multilingual"
     if any("science" in t or "books" in t or "book" in t for t in tag_list):
         return "pretraining-books"
