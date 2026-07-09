@@ -6,6 +6,8 @@ server.log
 server.err
 *.err
 *.log
+*.out
+socbench.db
 
 # Node / Next.js
 node_modules/
