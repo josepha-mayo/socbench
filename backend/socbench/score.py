@@ -101,26 +101,65 @@ def compute_coverage(samples: list[str]) -> dict:
     }
 
 
+# Keys whose values hold message text inside conversation/chat turns.
+_TURN_TEXT_KEYS = ("value", "content", "text", "message", "output", "response")
+# Keys that commonly hold a list of conversation turns.
+_CONVERSATION_KEYS = (
+    "conversations", "messages", "conversation", "chosen", "rejected",
+    "turns", "dialog", "dialogue",
+)
+
+
+def _extract_from_turns(turns: list) -> str:
+    """Join text from a list of chat turns (ShareGPT / OpenAI message format)."""
+    parts: list[str] = []
+    for turn in turns:
+        if isinstance(turn, str):
+            if turn.strip():
+                parts.append(turn)
+        elif isinstance(turn, dict):
+            for k in _TURN_TEXT_KEYS:
+                v = turn.get(k)
+                if isinstance(v, str) and v.strip():
+                    parts.append(v)
+                    break
+    return "\n".join(parts)
+
+
 def _extract_text(sample: object, preferred: str = "text") -> str:
     """Extract the best textual content from a dataset sample.
 
     HuggingFace datasets rarely use a single ``text`` field — instruction,
     QA, code, and evaluation datasets spread content across several keys
-    (``instruction``, ``response``, ``question``, ``answer``...). We fall
-    back to joining all string-valued fields so scorers actually see content.
+    (``instruction``, ``response``, ``question``, ``answer``...), and chat/SFT
+    datasets nest content in message lists (``conversations``, ``messages``).
+    We handle all of these so scorers actually see content.
     """
     if isinstance(sample, str):
         return sample
+    if isinstance(sample, list):
+        return _extract_from_turns(sample)
     if not isinstance(sample, dict):
         return str(sample) if sample is not None else ""
 
     if preferred in sample and isinstance(sample[preferred], str) and sample[preferred].strip():
         return sample[preferred]
 
+    # Conversation / chat formats (ShareGPT, OpenAI messages, DPO chosen/rejected).
+    conv_parts: list[str] = []
+    for k in _CONVERSATION_KEYS:
+        v = sample.get(k)
+        if isinstance(v, list) and v:
+            extracted = _extract_from_turns(v)
+            if extracted.strip():
+                conv_parts.append(extracted)
+    if conv_parts:
+        return "\n".join(conv_parts)
+
     content_keys = (
         "text", "content", "instruction", "response", "question", "answer",
         "output", "document", "sentence", "code", "source", "context",
-        "premise", "hypothesis", "dialogue", "completion",
+        "premise", "hypothesis", "dialogue", "completion", "prompt",
     )
     for k in content_keys:
         v = sample.get(k)
@@ -132,9 +171,13 @@ def _extract_text(sample: object, preferred: str = "text") -> str:
         if isinstance(v, str) and v.strip():
             parts.append(v)
         elif isinstance(v, list):
-            joined = " ".join(str(x) for x in v if isinstance(x, (str, int, float)))
-            if joined.strip():
-                parts.append(joined)
+            turn_text = _extract_from_turns(v)
+            if turn_text.strip():
+                parts.append(turn_text)
+            else:
+                joined = " ".join(str(x) for x in v if isinstance(x, (str, int, float)))
+                if joined.strip():
+                    parts.append(joined)
     return "\n".join(parts)
 
 
