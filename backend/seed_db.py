@@ -32,17 +32,12 @@ SEED_DATASETS = [
     "tatsu-lab/alpaca",                      # posttraining-sft
     # Expanded coverage across categories
     "teknium/OpenHermes-2.5",                # posttraining-sft (large)
-    "bigcode/the-stack-smol",                # pretraining-code
     "openai/openai_humaneval",               # evaluation (code)
     "cais/mmlu",                             # evaluation (knowledge)
-    "Open-Orca/OpenOrca",                    # posttraining-reasoning/sft
+    "Open-Orca/OpenOrca",                    # posttraining-sft/reasoning
     "nvidia/HelpSteer2",                     # posttraining-preference
-    "gsm8k",                                 # fallback
     "HuggingFaceM4/the_cauldron",            # multimodal (VLM)
     "lmms-lab/LLaVA-OneVision-Data",         # multimodal
-    "cnn_dailymail",                         # task-summarization
-    "wmt14",                                 # task-translation
-    "squad",                                 # task-qa
 ]
 
 DIM_KEYS = [
