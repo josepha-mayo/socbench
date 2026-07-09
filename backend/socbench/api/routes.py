@@ -220,7 +220,7 @@ async def discover_datasets(
 
     qualified = []
     for ds in datasets:
-        cat_key = classify_dataset(ds.tags)
+        cat_key = classify_dataset(ds.tags, dataset_id=ds.hf_id)
         is_qualified = not (ds.private or ds.gated) and ds.downloads >= 1000 and ds.likes >= 10
         qualified.append({
             "hf_id": ds.hf_id,

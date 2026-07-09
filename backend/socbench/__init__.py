@@ -61,8 +61,8 @@ def generate_recommendations(dataset_id: str, scores: dict, coverage: dict, tags
     return _gr(dataset_id, scores, coverage, tags)
 
 
-def classify_dataset(tags: list[str], description: str = ""):
+def classify_dataset(tags: list[str], description: str = "", dataset_id: str = ""):
     """Classify a dataset into its hierarchical category."""
     from socbench.categories import classify_dataset as _cd
 
-    return _cd(tags, description)
+    return _cd(tags, description, dataset_id)

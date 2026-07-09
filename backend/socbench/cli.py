@@ -50,7 +50,7 @@ def discover(
         table.add_column("Category", style="dim")
         for ds in results:
             from socbench.categories import classify_dataset, CATEGORIES
-            cat = classify_dataset(ds.tags or [], ds.description or "")
+            cat = classify_dataset(ds.tags or [], ds.description or "", dataset_id=ds.hf_id)
             cat_label = CATEGORIES.get(cat, CATEGORIES["pretraining-web"]).label
             table.add_row(
                 ds.hf_id,
@@ -212,7 +212,7 @@ def classify(
                 data = resp.json()
                 tags = data.get("tags", [])
                 desc = data.get("description", "")
-                cat = classify_dataset(tags, desc)
+                cat = classify_dataset(tags, desc, dataset_id=dataset_id)
                 cat_info = CATEGORIES.get(cat, CATEGORIES["pretraining-web"])
                 console.print(f"[bold]{dataset_id}[/bold] → [green]{cat_info.label}[/green] ({cat})")
                 console.print(f"  Metrics: {', '.join(cat_info.metrics)}")

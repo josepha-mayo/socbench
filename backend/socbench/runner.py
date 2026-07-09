@@ -244,7 +244,9 @@ async def run_socbench_scoring(
 
     # Classify dataset
     tags = metadata.get("tags", [])
-    category_key = classify_dataset(tags, metadata.get("description", ""))
+    category_key = classify_dataset(
+        tags, metadata.get("description", ""), dataset_id=dataset_id
+    )
 
     # Fetch samples
     samples = await fetch_samples(

@@ -165,19 +165,47 @@ HF_TAG_TO_CATEGORY = {
 }
 
 
-def classify_dataset(tags: list[str], description: str = "") -> str:
-    """Infer a dataset's primary category from HF tags.
+# Known evaluation benchmark name fragments.
+_EVAL_NAMES = (
+    "humaneval", "mmlu", "hellaswag", "truthfulqa", "arc-", "arc_", "mbpp",
+    "winogrande", "bigbench", "big-bench", "bbh", "agieval", "gpqa", "ifeval",
+    "swe-bench", "swebench", "livecodebench", "-bench", "_bench", "benchmark",
+)
+# Name fragments signalling a dataset's post-training purpose.
+_SFT_NAMES = (
+    "hermes", "orca", "alpaca", "dolly", "vicuna", "wizardlm", "wizard-",
+    "instruct", "ultrachat", "sharegpt", "oasst", "guanaco", "tulu", "flan",
+    "self-instruct", "sft",
+)
+_PREFERENCE_NAMES = (
+    "rlhf", "dpo", "preference", "helpsteer", "ultrafeedback", "hh-",
+    "reward", "-feedback",
+)
+_AGENT_NAMES = ("agent", "trajector", "webarena", "toolbench")
 
-    Returns category key (e.g., 'pretraining-code').
+
+def classify_dataset(
+    tags: list[str], description: str = "", dataset_id: str = ""
+) -> str:
+    """Infer a dataset's primary category.
+
+    Priority: benchmark > multimodal > post-training purpose (name/tags) >
+    code/math > reasoning > generic task tags > multilingual/books >
+    description > default web. Generic HF task tags (summarization, QA) are
+    ranked BELOW purpose signals, since instruction/preference datasets are
+    routinely mistagged with them.
     """
     tag_list = [t.lower() for t in tags]
+    name = (dataset_id or "").lower()
 
-    # Evaluation / benchmark datasets take priority (they may also carry
-    # code/math/task tags, but their purpose is measuring capability).
-    if any("benchmark" in t or "eval" in t for t in tag_list):
+    def in_name(fragments) -> bool:
+        return any(f in name for f in fragments)
+
+    # 1. Evaluation / benchmark
+    if any("benchmark" in t or "eval" in t for t in tag_list) or in_name(_EVAL_NAMES):
         return "evaluation"
 
-    # Multimodal
+    # 2. Multimodal
     if any(
         "image-text" in t or "visual-question" in t or "vqa" in t
         or "modality:image" in t or "modality:video" in t or "modality:audio" in t
@@ -185,23 +213,38 @@ def classify_dataset(tags: list[str], description: str = "") -> str:
     ):
         return "multimodal"
 
-    # Check for specific tags
-    if any("code" in t for t in tag_list):
-        return "pretraining-code"
-    if any("math" in t for t in tag_list):
-        return "pretraining-math"
+    # 3. Post-training purpose from NAME (beats generic task tags)
+    if in_name(_AGENT_NAMES):
+        return "posttraining-agent"
+    if in_name(_PREFERENCE_NAMES):
+        return "posttraining-preference"
+    if in_name(_SFT_NAMES):
+        return "posttraining-sft"
+
+    # 4. Post-training purpose from TAGS
     if any("agent" in t or "trajectory" in t for t in tag_list):
         return "posttraining-agent"
     if any("tool" in t and "use" in t for t in tag_list):
         return "posttraining-tooluse"
     if any("safety" in t for t in tag_list):
         return "posttraining-safety"
-    if any("preference" in t or "dpo" in t or "rlhf" in t for t in tag_list):
+    if any(
+        "preference" in t or "dpo" in t or "rlhf" in t or "human-feedback" in t
+        for t in tag_list
+    ):
         return "posttraining-preference"
     if any("sft" in t or "instruction" in t or "alpaca" in t for t in tag_list):
         return "posttraining-sft"
     if any("reasoning" in t or "cot" in t or "chain-of-thought" in t for t in tag_list):
         return "posttraining-reasoning"
+
+    # 5. Code / math
+    if any("code" in t for t in tag_list) or in_name(("code", "stack", "starcoder")):
+        return "pretraining-code"
+    if any("math" in t for t in tag_list) or in_name(("math", "gsm")):
+        return "pretraining-math"
+
+    # 6. Generic task tags
     if any("summarization" in t for t in tag_list):
         return "task-summarization"
     if any("translation" in t for t in tag_list):
@@ -210,22 +253,23 @@ def classify_dataset(tags: list[str], description: str = "") -> str:
         return "task-qa"
     if any("classification" in t for t in tag_list):
         return "task-classification"
-    # "multilingual" but avoid matching "multilinguality:monolingual"
-    if any(
-        "multilingual" in t and "monolingual" not in t for t in tag_list
-    ):
+
+    # 7. Multilingual (avoid "multilinguality:monolingual") / books
+    if any("multilingual" in t and "monolingual" not in t for t in tag_list):
         return "pretraining-multilingual"
     if any("science" in t or "books" in t or "book" in t for t in tag_list):
         return "pretraining-books"
 
-    # Check description
+    # 8. Description fallback
     desc = description.lower()
     if "instruction" in desc or "sft" in desc:
         return "posttraining-sft"
+    if "preference" in desc or "rlhf" in desc:
+        return "posttraining-preference"
     if "code" in desc or "programming" in desc:
         return "pretraining-code"
 
-    # Default: web pretraining
+    # 9. Default
     return "pretraining-web"
 
 
