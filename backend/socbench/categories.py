@@ -78,19 +78,19 @@ CATEGORIES = {
     ),
     "posttraining-preference": Category(
         key="posttraining-preference",
-        label="Preference / DPO",
+        label="Preference Optimization",
         parent="posttraining",
         metrics=["quality", "diversity", "pair_quality", "preference_consistency", "safety"],
     ),
     "posttraining-tooluse": Category(
         key="posttraining-tooluse",
-        label="Tool Use",
+        label="Tool Calling",
         parent="posttraining",
         metrics=["quality", "diversity", "tool_correctness", "format_consistency"],
     ),
     "posttraining-agent": Category(
         key="posttraining-agent",
-        label="Agent Trajectories",
+        label="Agent Traces",
         parent="posttraining",
         metrics=["quality", "diversity", "trajectory_completeness", "recovery_rate", "loop_detection", "tool_correctness"],
     ),
@@ -182,6 +182,7 @@ _PREFERENCE_NAMES = (
     "reward", "-feedback",
 )
 _AGENT_NAMES = ("agent", "trajector", "webarena", "toolbench")
+_TOOL_NAMES = ("tool-call", "tool_call", "tool-use", "tool_use", "function-call", "function_call", "toolcalling", "tool-calling")
 
 
 def classify_dataset(
@@ -214,6 +215,8 @@ def classify_dataset(
         return "multimodal"
 
     # 3. Post-training purpose from NAME (beats generic task tags)
+    if in_name(_TOOL_NAMES):
+        return "posttraining-tooluse"
     if in_name(_AGENT_NAMES):
         return "posttraining-agent"
     if in_name(_PREFERENCE_NAMES):
@@ -224,7 +227,7 @@ def classify_dataset(
     # 4. Post-training purpose from TAGS
     if any("agent" in t or "trajectory" in t for t in tag_list):
         return "posttraining-agent"
-    if any("tool" in t and "use" in t for t in tag_list):
+    if any(("tool" in t and "use" in t) or "tool-call" in t or "function-call" in t or "toolcalling" in t for t in tag_list):
         return "posttraining-tooluse"
     if any("safety" in t for t in tag_list):
         return "posttraining-safety"

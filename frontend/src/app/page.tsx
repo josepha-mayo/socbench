@@ -14,20 +14,26 @@ interface Dataset {
   popularity: number | null;
   freshness: number | null;
   contamination: number | null;
+  contaminated: boolean;
+  repetition_pct: number | null;
+  combined_score: number | null;
   downloads: number | null;
   likes: number | null;
   category: string;
+  created_at: string | null;
 }
 
 const CATEGORIES = [
   "All",
   "Pretraining",
-  "Post-Training",
-  "Code",
-  "Instruction/SFT",
-  "Agent",
-  "Evaluation",
+  "SFT",
+  "Preference Opt.",
+  "Agent Traces",
+  "Tool Calling",
+  "Reasoning",
+  "Task",
   "Multimodal",
+  "Safety",
 ];
 
 const CAT_LABEL: Record<string, string> = {
@@ -38,9 +44,9 @@ const CAT_LABEL: Record<string, string> = {
   "pretraining-books": "Books",
   "pretraining-multilingual": "Multilingual",
   "posttraining-sft": "SFT",
-  "posttraining-preference": "Pref",
-  "posttraining-tooluse": "Tool",
-  "posttraining-agent": "Agent",
+  "posttraining-preference": "Pref Opt",
+  "posttraining-tooluse": "Tool Call",
+  "posttraining-agent": "Agent Traces",
   "posttraining-safety": "Safety",
   "posttraining-reasoning": "Reasoning",
   "evaluation": "Eval",
@@ -51,28 +57,44 @@ const CAT_LABEL: Record<string, string> = {
   "multimodal": "Multimodal",
 };
 
-function scoreBar(score: number | null, width: number = 60) {
+const SORT_OPTIONS = [
+  { key: "quality", label: "Quality" },
+  { key: "diversity", label: "Diversity" },
+  { key: "combined_score", label: "Combined" },
+  { key: "popularity", label: "Popularity" },
+  { key: "freshness", label: "Freshness" },
+];
+
+function score100(score: number | null) {
   if (score === null) return <span className="text-arxiv-gray text-xs">—</span>;
-  const pct = Math.round((score || 0) * 100);
+  const val = Math.round(score);
   const color =
-    score >= 0.7 ? "bg-green-500" : score >= 0.4 ? "bg-yellow-500" : "bg-red-500";
+    val >= 70 ? "text-green-700" : val >= 40 ? "text-yellow-700" : "text-red-700";
   return (
-    <div className="flex items-center gap-1">
-      <div className={`flex-1 h-2 rounded-full overflow-hidden bg-arxiv-lightgray ${width ? `w-[${width}px]` : ''}`}>
+    <span className={`font-mono text-xs font-bold ${color}`}>
+      {val}
+    </span>
+  );
+}
+
+function scoreBar(score: number | null) {
+  if (score === null) return <span className="text-arxiv-gray text-xs">—</span>;
+  const pct = Math.round(score);
+  const color =
+    pct >= 70 ? "bg-green-500" : pct >= 40 ? "bg-yellow-500" : "bg-red-500";
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className="w-12 h-2 rounded-full overflow-hidden bg-arxiv-lightgray">
         <div
           className={`h-full ${color} rounded-full`}
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="font-mono text-[10px] text-arxiv-gray w-8 text-right">
-        {score.toFixed(2)}
+      <span className="font-mono text-[10px] font-bold text-arxiv-dark w-7">
+        {pct}
       </span>
     </div>
   );
-}
-
-function dimensionBar(score: number | null) {
-  return scoreBar(score, 60);
 }
 
 function formatNumber(n: number | null) {
@@ -82,45 +104,84 @@ function formatNumber(n: number | null) {
   return n.toLocaleString();
 }
 
+function formatDate(dateStr: string | null) {
+  if (!dateStr) return "—";
+  try {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+  } catch {
+    return "—";
+  }
+}
+
 export default function LeaderboardPage() {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState("All");
+  const [sortBy, setSortBy] = useState("quality");
+  const [showEvalModal, setShowEvalModal] = useState(false);
+  const [evalHfId, setEvalHfId] = useState("");
+  const [evalVisibility, setEvalVisibility] = useState("public");
+  const [evalStatus, setEvalStatus] = useState<string | null>(null);
 
   useEffect(() => {
     const categoryParam = category === "All" ? "" : categorySlug(category);
-    fetch(`/api/leaderboard?category=${encodeURIComponent(categoryParam)}`)
+    fetch(`/api/leaderboard?category=${encodeURIComponent(categoryParam)}&sort=${sortBy}&limit=200`)
       .then((r) => r.json())
       .then((data) => {
         setDatasets(data as Dataset[]);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [category]);
+  }, [category, sortBy]);
 
   function categorySlug(cat: string): string {
     const map: Record<string, string> = {
       "Pretraining": "pretraining",
-      "Post-Training": "posttraining",
-      "Code": "code",
-      "Instruction/SFT": "sft",
-      "Agent": "agent",
-      "Evaluation": "evaluation",
+      "SFT": "sft",
+      "Preference Opt.": "preference",
+      "Agent Traces": "agent",
+      "Tool Calling": "tooluse",
+      "Reasoning": "reasoning",
+      "Task": "task",
       "Multimodal": "multimodal",
+      "Safety": "safety",
     };
     return map[cat] || "";
   }
 
   const filtered = category === "All" ? datasets : datasets.filter(ds => {
     const cat = ds.category || "";
-    const tag = ds.tags.map(t => t.toLowerCase());
-    if (category === "Code") return cat.includes("code") || tag.includes("code");
+    if (category === "SFT") return cat.includes("sft");
     if (category === "Pretraining") return cat.includes("pretraining");
-    if (category === "Post-Training") return cat.includes("posttraining");
-    if (category === "Instruction/SFT") return cat.includes("sft") || tag.includes("instruction") || tag.includes("sft");
-    if (category === "Agent") return cat.includes("agent");
+    if (category === "Preference Opt.") return cat.includes("preference");
+    if (category === "Agent Traces") return cat.includes("agent");
+    if (category === "Tool Calling") return cat.includes("tooluse");
+    if (category === "Reasoning") return cat.includes("reasoning");
+    if (category === "Task") return cat.startsWith("task-");
+    if (category === "Multimodal") return cat.includes("multimodal");
+    if (category === "Safety") return cat.includes("safety");
     return true;
   });
+
+  async function submitEvalRequest() {
+    if (!evalHfId.trim()) return;
+    setEvalStatus(null);
+    try {
+      const resp = await fetch("/api/request-evaluation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          hf_id: evalHfId.trim(),
+          visibility: evalVisibility,
+        }),
+      });
+      const data = await resp.json();
+      setEvalStatus(data.message || "Request submitted.");
+    } catch {
+      setEvalStatus("Failed to submit request.");
+    }
+  }
 
   return (
     <div>
@@ -132,20 +193,40 @@ export default function LeaderboardPage() {
           "The unexamined dataset is not worth training on."
         </p>
         <p className="text-xs font-sans text-arxiv-gray mt-1">
-          Multi-dimension quality scoring: quality, diversity, utility, documentation, freshness, and contamination.
+          Multi-dimension quality scoring (0-100): quality, diversity, utility, documentation, freshness, contamination, and repetition.
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-6">
-        {CATEGORIES.map((cat) => (
-          <button
-            key={cat}
-            className={`category-tab ${category === cat ? "active" : ""}`}
-            onClick={() => setCategory(cat)}
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <div className="flex flex-wrap gap-1.5">
+          {CATEGORIES.map((cat) => (
+            <button
+              key={cat}
+              className={`category-tab ${category === cat ? "active" : ""}`}
+              onClick={() => setCategory(cat)}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-sans text-arxiv-gray">Sort by:</span>
+          <select
+            className="text-xs font-sans border border-arxiv-border rounded px-2 py-1 bg-white"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
           >
-            {cat}
+            {SORT_OPTIONS.map((opt) => (
+              <option key={opt.key} value={opt.key}>{opt.label}</option>
+            ))}
+          </select>
+          <button
+            className="text-xs font-sans bg-arxiv-red text-white px-3 py-1.5 rounded font-medium hover:bg-arxiv-darkred transition-colors"
+            onClick={() => { setShowEvalModal(true); setEvalStatus(null); }}
+          >
+            Request Evaluation
           </button>
-        ))}
+        </div>
       </div>
 
       {loading ? (
@@ -156,28 +237,30 @@ export default function LeaderboardPage() {
             <thead>
               <tr>
                 <th className="w-10">#</th>
-                <th className="min-w-[200px]">Dataset</th>
-                <th className="w-[80px]">Category</th>
-                <th className="w-[90px]">Quality</th>
-                <th className="w-[90px]">Diversity</th>
-                <th className="w-[90px]">Utility</th>
-                <th className="w-[90px]">Documentation</th>
-                <th className="w-[90px]">Freshness</th>
+                <th className="min-w-[180px]">Dataset</th>
+                <th className="w-[90px]">Category</th>
+                <th className="w-[70px]">Quality</th>
+                <th className="w-[70px]">Diversity</th>
+                <th className="w-[70px]">Docs</th>
+                <th className="w-[70px]">Fresh</th>
+                <th className="w-[60px]">Repetition</th>
+                <th className="w-[60px]">Contam.</th>
+                <th className="w-[90px]">Created</th>
                 <th className="text-right w-[80px]">Downloads</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((ds) => (
+              {filtered.map((ds, i) => (
                 <tr key={ds.hf_id}>
-                  <td className="font-mono text-arxiv-gray text-xs">{ds.rank}</td>
+                  <td className="font-mono text-arxiv-gray text-xs">{i + 1}</td>
                   <td>
                     <a
                       href={`/datasets/${encodeURIComponent(ds.hf_id)}`}
-                      className="font-sans text-sm font-medium block"
+                      className="font-sans text-sm font-medium block hover:text-arxiv-red"
                     >
                       {ds.hf_id}
                     </a>
-                    <div className="flex gap-1 mt-1">
+                    <div className="flex gap-1 mt-0.5">
                       {ds.tags.slice(0, 3).map((t) => (
                         <span key={t} className="text-[9px] font-sans bg-arxiv-lightgray border border-arxiv-border px-1 rounded text-arxiv-gray">
                           {t}
@@ -186,15 +269,33 @@ export default function LeaderboardPage() {
                     </div>
                   </td>
                   <td>
-                    <span className="text-[10px] font-sans bg-arxiv-red/10 text-arxiv-red px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] font-sans bg-arxiv-red/10 text-arxiv-red px-2 py-0.5 rounded-full whitespace-nowrap">
                       {CAT_LABEL[ds.category || ""] || ds.category || "—"}
                     </span>
                   </td>
-                  <td>{dimensionBar(ds.quality)}</td>
-                  <td>{dimensionBar(ds.diversity)}</td>
-                  <td>{dimensionBar(ds.utility)}</td>
-                  <td>{dimensionBar(ds.documentation)}</td>
-                  <td>{dimensionBar(ds.freshness)}</td>
+                  <td>{scoreBar(ds.quality)}</td>
+                  <td>{scoreBar(ds.diversity)}</td>
+                  <td>{score100(ds.documentation)}</td>
+                  <td>{score100(ds.freshness)}</td>
+                  <td className="font-mono text-xs">
+                    {ds.repetition_pct != null ? (
+                      <span className={ds.repetition_pct > 20 ? "text-red-700 font-bold" : ds.repetition_pct > 5 ? "text-yellow-700" : "text-green-700"}>
+                        {ds.repetition_pct.toFixed(1)}%
+                      </span>
+                    ) : "—"}
+                  </td>
+                  <td className="font-mono text-xs">
+                    {ds.contaminated ? (
+                      <span className="text-red-700 font-bold" title={`Contamination: ${ds.contamination ?? 0}%`}>
+                        YES
+                      </span>
+                    ) : (
+                      <span className="text-green-700">clean</span>
+                    )}
+                  </td>
+                  <td className="font-mono text-[10px] text-arxiv-gray">
+                    {formatDate(ds.created_at)}
+                  </td>
                   <td className="text-right font-mono text-xs">
                     {formatNumber(ds.downloads)}
                     <div className="text-[9px] text-arxiv-gray">{formatNumber(ds.likes)} likes</div>
@@ -210,9 +311,75 @@ export default function LeaderboardPage() {
         <strong className="text-arxiv-dark">Methodology:</strong> Multi-dimension scoring using
         Gopher quality rules (Rae et al., 2021), FineWeb filters (Penedo et al., NeurIPS 2024),
         DCLM filtering (Li et al., NeurIPS 2024), MinHash deduplication (SlimPajama),
-        and 13-gram contamination checking (GPT-3 methodology). Categories are hierarchically
-        classified — different metrics apply to code, instruction, agent, and evaluation datasets.
+        and 13-gram contamination checking (GPT-3 methodology). Scores are on a 0-100 scale.
+        Contamination flag triggers when benchmark overlap exceeds 1%. Repetition % measures
+        exact-row duplication. Categories are hierarchically classified.
       </div>
+
+      {showEvalModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setShowEvalModal(false)}>
+          <div className="bg-white border border-arxiv-border rounded-lg p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-serif font-bold text-arxiv-dark mb-4">Request Dataset Evaluation</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-sans text-arxiv-gray block mb-1">HuggingFace Dataset ID</label>
+                <input
+                  type="text"
+                  placeholder="org/dataset-name"
+                  className="w-full text-sm font-sans border border-arxiv-border rounded px-3 py-2"
+                  value={evalHfId}
+                  onChange={(e) => setEvalHfId(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-sans text-arxiv-gray block mb-1">Visibility</label>
+                <div className="flex gap-3">
+                  <label className="flex items-center gap-1.5 text-sm font-sans">
+                    <input
+                      type="radio"
+                      name="visibility"
+                      value="public"
+                      checked={evalVisibility === "public"}
+                      onChange={(e) => setEvalVisibility(e.target.value)}
+                    />
+                    Public (results published on leaderboard)
+                  </label>
+                  <label className="flex items-center gap-1.5 text-sm font-sans">
+                    <input
+                      type="radio"
+                      name="visibility"
+                      value="private"
+                      checked={evalVisibility === "private"}
+                      onChange={(e) => setEvalVisibility(e.target.value)}
+                    />
+                    Private (results shared with you only)
+                  </label>
+                </div>
+              </div>
+              {evalStatus && (
+                <p className="text-xs font-sans text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">
+                  {evalStatus}
+                </p>
+              )}
+              <div className="flex gap-2 justify-end pt-2">
+                <button
+                  className="text-sm font-sans px-4 py-2 border border-arxiv-border rounded text-arxiv-gray hover:bg-arxiv-lightgray"
+                  onClick={() => setShowEvalModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="text-sm font-sans px-4 py-2 bg-arxiv-red text-white rounded font-medium hover:bg-arxiv-darkred"
+                  onClick={submitEvalRequest}
+                  disabled={!evalHfId.trim()}
+                >
+                  Submit Request
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

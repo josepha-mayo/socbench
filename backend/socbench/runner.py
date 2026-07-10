@@ -266,6 +266,12 @@ async def run_socbench_scoring(
         dataset_id, samples, category_key=category_key, text_key=text_key
     )
 
+    # Extract repetition rate from dedup scorer details.
+    dedup_details = score.quality.details
+    repetition_pct = round(
+        (1.0 - dedup_details.get("dedup", 1.0)) * 100, 2
+    )
+
     # Run contamination checker (13-gram overlap vs eval benchmarks).
     # Reuses cached benchmark n-gram sets; first run fetches them.
     cont_texts = [_extract_text(s, text_key) for s in samples]
@@ -367,6 +373,7 @@ async def run_socbench_scoring(
         "coverage": score.coverage,
         "contamination_rate": cont_rate,
         "contamination_checks": contamination_checks,
+        "repetition_pct": repetition_pct,
         "category_metrics": [
             {
                 "name": cs.name,
@@ -392,6 +399,7 @@ async def run_socbench_scoring(
             "downloads": metadata.get("downloads", 0),
             "likes": metadata.get("likes", 0),
             "last_modified": metadata.get("last_modified"),
+            "created_at": metadata.get("created_at"),
         },
         "samples_fetched": len(samples),
         "elapsed_seconds": round(elapsed, 2),

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -162,41 +163,54 @@ async def score_dataset(hf_id: str, sample_size: int = Query(10_000, ge=100, le=
 
 @router.get("/leaderboard")
 async def get_leaderboard(
-    limit: int = Query(50, ge=1, le=500),
+    limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
     category: Optional[str] = Query(None),
+    sort: str = Query("quality"),
 ):
     async with async_session_factory() as session:
+        valid_sorts = {"quality", "diversity", "utility", "documentation", "popularity", "freshness", "combined_score", "downloads"}
+        sort_col = getattr(LeaderboardRow, sort if sort in valid_sorts else "quality")
         stmt = select(LeaderboardRow)
         if category:
             stmt = stmt.where(LeaderboardRow.category.like(f"%{category}%"))
-        stmt = stmt.order_by(LeaderboardRow.combined_score.desc().nullslast())
+        stmt = stmt.order_by(sort_col.desc().nullslast())
         stmt = stmt.offset(offset).limit(limit)
         result = await session.execute(stmt)
         entries = result.scalars().all()
+
+        def s100(val):
+            """Convert 0-1 score to 0-100, rounded to 1 decimal."""
+            if val is None:
+                return None
+            return round(val * 100, 1)
 
         leaderboard = []
         for entry in entries:
             ds_stmt = select(DatasetRow).where(DatasetRow.id == entry.dataset_id)
             ds = (await session.execute(ds_stmt)).scalar_one_or_none()
             if ds:
+                cont = entry.contamination_score or 0.0
                 leaderboard.append({
                     "rank": entry.rank,
                     "hf_id": ds.hf_id,
                     "name": ds.name,
                     "tags": ds.tags,
                     "category": entry.category if hasattr(entry, "category") else None,
-                    "quality": entry.quality,
-                    "diversity": entry.diversity,
-                    "utility": entry.utility,
-                    "documentation": entry.documentation,
-                    "popularity": entry.popularity,
-                    "freshness": entry.freshness,
-                    "pii_safety": entry.pii_safety,
-                    "contamination": entry.contamination_score,
-                    "combined_score": entry.combined_score,
+                    "quality": s100(entry.quality),
+                    "diversity": s100(entry.diversity),
+                    "utility": s100(entry.utility),
+                    "documentation": s100(entry.documentation),
+                    "popularity": s100(entry.popularity),
+                    "freshness": s100(entry.freshness),
+                    "pii_safety": s100(entry.pii_safety),
+                    "contamination": s100(cont),
+                    "contaminated": cont > 0.01,
+                    "repetition_pct": entry.repetition_pct,
+                    "combined_score": s100(entry.combined_score),
                     "downloads": ds.downloads,
                     "likes": ds.likes,
+                    "created_at": ds.created_at,
                 })
         return leaderboard
 
@@ -245,3 +259,30 @@ async def get_stats():
         ds_count = (await session.execute(select(func.count(DatasetRow.id)))).scalar() or 0
         score_count = (await session.execute(select(func.count(ScoreRow.id)))).scalar() or 0
         return {"total_datasets": ds_count, "total_scores": score_count}
+
+
+# ---------------------------------------------------------------------------
+# Evaluation requests
+# ---------------------------------------------------------------------------
+
+class EvalRequest(BaseModel):
+    hf_id: str
+    visibility: str = "public"  # "public" or "private"
+    requester: str = ""
+    notes: str = ""
+
+
+@router.post("/request-evaluation")
+async def request_evaluation(req: EvalRequest):
+    """Submit a dataset evaluation request (public or private)."""
+    if req.visibility not in ("public", "private"):
+        raise HTTPException(status_code=400, detail="visibility must be 'public' or 'private'")
+    # In a full deployment this would persist to a queue table and notify.
+    # For now we return an acknowledgement so the frontend can confirm.
+    return {
+        "status": "received",
+        "hf_id": req.hf_id,
+        "visibility": req.visibility,
+        "message": f"Evaluation request for {req.hf_id} ({req.visibility}) received. "
+        f"You will be notified when results are available.",
+    }

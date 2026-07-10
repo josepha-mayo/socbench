@@ -37,6 +37,7 @@ class DatasetRow(Base):
     downloads: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     likes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     trending_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    created_at: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     discovered_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -125,6 +126,7 @@ class LeaderboardRow(Base):
     pii_safety: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     training_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     contamination_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    repetition_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     combined_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     rank: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
