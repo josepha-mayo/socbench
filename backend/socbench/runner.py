@@ -12,7 +12,8 @@ from typing import Optional
 import httpx
 
 from socbench.categories import classify_dataset, get_category_metrics
-from socbench.score import compute_multi_dimension_score, SocbenchScore
+from socbench.contamination.checker import check_texts_against_benchmarks
+from socbench.score import compute_multi_dimension_score, SocbenchScore, _extract_text
 from socbench.scoring.base import ScoreResult
 from socbench.provenance import get_provenance
 
@@ -265,6 +266,22 @@ async def run_socbench_scoring(
         dataset_id, samples, category_key=category_key, text_key=text_key
     )
 
+    # Run contamination checker (13-gram overlap vs eval benchmarks).
+    # Reuses cached benchmark n-gram sets; first run fetches them.
+    cont_texts = [_extract_text(s, text_key) for s in samples]
+    cont_results, cont_rate = await check_texts_against_benchmarks(
+        cont_texts, token=token
+    )
+    contamination_checks = [
+        {
+            "name": r.name,
+            "score": r.score,
+            "details": r.details,
+            "warnings": r.warnings,
+        }
+        for r in cont_results
+    ]
+
     # Get provenance
     provenance = get_provenance(dataset_id)
 
@@ -287,7 +304,7 @@ async def run_socbench_scoring(
         "popularity": pop_score,
         "freshness": fresh_score,
         "pii_safety": score.pii_safety.score,
-        "contamination": score.contamination_rate,
+        "contamination": cont_rate,
     }
     for cs in score.category_scores:
         auto_scores[cs.name] = cs.score
@@ -348,7 +365,8 @@ async def run_socbench_scoring(
             "warnings": score.pii_safety.warnings,
         },
         "coverage": score.coverage,
-        "contamination_rate": score.contamination_rate,
+        "contamination_rate": cont_rate,
+        "contamination_checks": contamination_checks,
         "category_metrics": [
             {
                 "name": cs.name,

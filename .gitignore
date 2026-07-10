@@ -9,6 +9,9 @@ server.err
 *.out
 socbench.db
 
+# Contamination checker benchmark n-gram cache
+backend/socbench/contamination/.cache/
+
 # Node / Next.js
 node_modules/
 .next/

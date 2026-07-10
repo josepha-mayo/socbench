@@ -30,6 +30,27 @@ const CATEGORIES = [
   "Multimodal",
 ];
 
+const CAT_LABEL: Record<string, string> = {
+  "pretraining-web": "Web",
+  "pretraining-code": "Code",
+  "pretraining-math": "Math",
+  "pretraining-science": "Science",
+  "pretraining-books": "Books",
+  "pretraining-multilingual": "Multilingual",
+  "posttraining-sft": "SFT",
+  "posttraining-preference": "Pref",
+  "posttraining-tooluse": "Tool",
+  "posttraining-agent": "Agent",
+  "posttraining-safety": "Safety",
+  "posttraining-reasoning": "Reasoning",
+  "evaluation": "Eval",
+  "task-classification": "Classify",
+  "task-translation": "Translate",
+  "task-qa": "QA",
+  "task-summarization": "Summarize",
+  "multimodal": "Multimodal",
+};
+
 function scoreBar(score: number | null, width: number = 60) {
   if (score === null) return <span className="text-arxiv-gray text-xs">—</span>;
   const pct = Math.round((score || 0) * 100);
@@ -136,6 +157,7 @@ export default function LeaderboardPage() {
               <tr>
                 <th className="w-10">#</th>
                 <th className="min-w-[200px]">Dataset</th>
+                <th className="w-[80px]">Category</th>
                 <th className="w-[90px]">Quality</th>
                 <th className="w-[90px]">Diversity</th>
                 <th className="w-[90px]">Utility</th>
@@ -162,6 +184,11 @@ export default function LeaderboardPage() {
                         </span>
                       ))}
                     </div>
+                  </td>
+                  <td>
+                    <span className="text-[10px] font-sans bg-arxiv-red/10 text-arxiv-red px-2 py-0.5 rounded-full">
+                      {CAT_LABEL[ds.category || ""] || ds.category || "—"}
+                    </span>
                   </td>
                   <td>{dimensionBar(ds.quality)}</td>
                   <td>{dimensionBar(ds.diversity)}</td>

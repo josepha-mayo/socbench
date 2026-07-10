@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from sqlalchemy import select
 
 from socbench.db import async_session_factory, init_db
-from socbench.models import DatasetRow, LeaderboardRow, ScoreRow
+from socbench.models import ContaminationRow, DatasetRow, LeaderboardRow, ScoreRow
 from socbench.runner import run_socbench_scoring
 
 # Curated datasets covering all forms of datasets.
@@ -38,6 +38,13 @@ SEED_DATASETS = [
     "nvidia/HelpSteer2",                     # posttraining-preference
     "HuggingFaceM4/the_cauldron",            # multimodal (VLM)
     "lmms-lab/LLaVA-OneVision-Data",         # multimodal
+    # Code / agent / summarization / translation / QA coverage
+    "m-a-p/CodeFeedback-Filtered-Instruction",  # code (SFT)
+    "google-research-datasets/mbpp",             # code (evaluation)
+    "OpenAssistant/oasst2",                      # agent / assistant (SFT)
+    "EdinburghNLP/xsum",                         # task-summarization
+    "Helsinki-NLP/opus_books",                   # task-translation
+    "rajpurkar/squad",                           # task-qa
 ]
 
 DIM_KEYS = [
@@ -128,6 +135,28 @@ async def seed() -> None:
                     warnings=block.get("warnings", []) if isinstance(block, dict) else [],
                 ))
 
+            # Persist per-benchmark contamination rows (replace any existing).
+            existing_cont = (await session.execute(
+                select(ContaminationRow).where(ContaminationRow.dataset_id == ds.id)
+            )).scalars().all()
+            for ex in existing_cont:
+                await session.delete(ex)
+            await session.flush()
+
+            for check in result.get("contamination_checks", []):
+                details = check.get("details", {}) or {}
+                # Skip benchmarks that could not be fetched (no overlap_rate).
+                if "overlap_rate" not in details:
+                    continue
+                session.add(ContaminationRow(
+                    dataset_id=ds.id,
+                    benchmark_name=details.get("benchmark", check.get("name", "").replace("contamination_", "")),
+                    overlap_rate=details.get("overlap_rate", 0.0),
+                    overlap_count=details.get("overlap_count", 0),
+                    total_eval=details.get("total_eval_ngrams", 0),
+                    method=details.get("method", "ngram_13"),
+                ))
+
             # Leaderboard entry with all dimensions.
             lb_stmt = select(LeaderboardRow).where(LeaderboardRow.dataset_id == ds.id)
             lb = (await session.execute(lb_stmt)).scalar_one_or_none()
@@ -153,7 +182,9 @@ async def seed() -> None:
             lb.category = category
 
             await session.commit()
-            print(f"  done: q={dims['quality']} d={dims['diversity']} u={dims['utility']} combined={combined}", flush=True)
+            cont_rate = result.get("contamination_rate")
+            n_cont = len(result.get("contamination_checks", []))
+            print(f"  done: q={dims['quality']} d={dims['diversity']} u={dims['utility']} combined={combined} cont={cont_rate} ({n_cont} benchmarks)", flush=True)
 
     # Assign ranks.
     async with async_session_factory() as session:

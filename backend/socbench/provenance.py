@@ -92,6 +92,70 @@ KNOWN_PROVENANCE: list[ProvenanceEntry] = [
         paper_url="https://arxiv.org/abs/2306.02707",
         verified=True,
     ),
+    # Expanded coverage
+    ProvenanceEntry(
+        dataset_id="tatsu-lab/alpaca",
+        model_name="Alpaca, Vicuna, Koala",
+        paper_title="Alpaca: A Strong, Replicable Instruction-Following Model",
+        paper_url="https://crfm.stanford.edu/2023/03/13/alpaca.html",
+        verified=True,
+    ),
+    ProvenanceEntry(
+        dataset_id="Anthropic/hh-rlhf",
+        model_name="Claude (RLHF), Constitutional AI models",
+        paper_title="Training a Helpful and Harmless Assistant with RLHF",
+        paper_url="https://arxiv.org/abs/2204.05862",
+        verified=True,
+    ),
+    ProvenanceEntry(
+        dataset_id="openai/gsm8k",
+        model_name="GPT-4, Claude, Gemini, DeepSeek, many eval suites",
+        paper_title="Training Verifiers to Solve Math Word Problems",
+        paper_url="https://arxiv.org/abs/2110.14168",
+        verified=True,
+    ),
+    ProvenanceEntry(
+        dataset_id="cais/mmlu",
+        model_name="MMLU benchmark users (GPT, Claude, Gemini, etc.)",
+        paper_title="Measuring Massive Multitask Language Understanding",
+        paper_url="https://arxiv.org/abs/2009.03300",
+        verified=True,
+    ),
+    ProvenanceEntry(
+        dataset_id="stanfordnlp/sst2",
+        model_name="BERT, RoBERTa, many sentiment classifiers",
+        paper_title="Recursive Deep Models for Semantic Compositionality",
+        paper_url="https://nlp.stanford.edu/~socherr/EMNLP2013_RNTN.pdf",
+        verified=True,
+    ),
+    ProvenanceEntry(
+        dataset_id="Skylion007/openwebtext",
+        model_name="GPT-2, GPT-Neo, GPT-J",
+        paper_title="OpenWebText Corpus",
+        paper_url="https://github.com/jcpeterson/openwebtext",
+        verified=True,
+    ),
+    ProvenanceEntry(
+        dataset_id="lmms-lab/LLaVA-OneVision-Data",
+        model_name="LLaVA-OneVision",
+        paper_title="LLaVA-OneVision: Easy Visual Task Transfer",
+        paper_url="https://arxiv.org/abs/2408.04619",
+        verified=True,
+    ),
+    ProvenanceEntry(
+        dataset_id="HuggingFaceM4/the_cauldron",
+        model_name="Idefics, Idefics2",
+        paper_title="The Cauldron: Multimodal Dataset",
+        paper_url="https://arxiv.org/abs/2312.06953",
+        verified=True,
+    ),
+    ProvenanceEntry(
+        dataset_id="nvidia/HelpSteer2",
+        model_name="Nemotron-4 340B Reward",
+        paper_title="HelpSteer2: Open-source dataset for training top-performing reward models",
+        paper_url="https://arxiv.org/abs/2406.08673",
+        verified=True,
+    ),
 ]
 
 
