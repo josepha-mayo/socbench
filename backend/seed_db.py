@@ -45,6 +45,47 @@ SEED_DATASETS = [
     "EdinburghNLP/xsum",                         # task-summarization
     "Helsinki-NLP/opus_books",                   # task-translation
     "rajpurkar/squad",                           # task-qa
+    # --- Large expansion: training data across all categories ---
+    # Pretraining (more web/math/wiki corpora)
+    "HuggingFaceFW/fineweb-edu",                 # pretraining-web (edu-filtered)
+    "open-web-math/open-web-math",               # pretraining-math
+    "Salesforce/wikitext",                       # pretraining-web (wiki)
+    "wikimedia/wikipedia",                       # pretraining-web (wiki, 2024)
+    "scholarweave/arxiv-latex",                  # pretraining-science (arxiv)
+    # SFT (high-quality instruction data)
+    "HuggingFaceH4/ultrachat_200k",              # posttraining-sft (large, multi-turn)
+    "HuggingFaceH4/no_robots",                   # posttraining-sft (human-written)
+    "garage-bAInd/Open-Platypus",                # posttraining-sft (reasoning/STEM)
+    "jondurbin/airoboros-2.2.1",                 # posttraining-sft (diverse instruct)
+    "shibing624/sharegpt_gpt4",                  # posttraining-sft (ShareGPT GPT-4)
+    "open-thoughts/OpenThoughts-114k",           # posttraining-sft (reasoning traces)
+    "WithinUsAI/claude_mythos_distilled_25k",    # posttraining-sft (distilled)
+    # Preference / DPO
+    "HuggingFaceH4/ultrafeedback_binarized",     # posttraining-preference (large)
+    "Intel/orca_dpo_pairs",                      # posttraining-preference
+    "jondurbin/truthy-dpo-v0.1",                 # posttraining-preference (truthfulness)
+    "Skywork/Skywork-Reward-Preference-80K-v0.2", # posttraining-preference (reward model)
+    "argilla/distilabel-intel-orca-dpo-pairs",   # posttraining-preference
+    # Agent traces (trending — let quality scorers separate real from slop)
+    "Glint-Research/Fable-5-traces",             # posttraining-agent (trending #1)
+    "nvidia/Open-SWE-Traces",                    # posttraining-agent (SWE traces)
+    "AletheiaResearch/GLM-5.2-Agent",            # posttraining-agent (agent traces)
+    "armand0e/claude-fable-5-claude-code",       # posttraining-agent (Fable-5 derived)
+    "Crownelius/Complete-FABLE.5-traces-2M",     # posttraining-agent (aggregated traces)
+    "CodeDevX/Vibe-Coding-Instruct",             # posttraining-agent (code+agent)
+    "AletheiaResearch/GPT-5.5-Codex",            # posttraining-agent (code agent traces)
+    # Reasoning / math
+    "microsoft/orca-math-word-problems-200k",    # posttraining-reasoning (math)
+    "nvidia/OpenMathInstruct-2",                 # posttraining-reasoning (math, large)
+    "meta-math/MetaMathQA",                      # posttraining-reasoning (math QA)
+    "TIGER-Lab/MathInstruct",                    # posttraining-reasoning (math instruct)
+    # Code
+    "HuggingFaceH4/instruction-dataset",         # posttraining-sft (code instruct)
+    # Multimodal
+    "HuggingFaceH4/llava-instruct-mix-vsft",     # multimodal (VLM instruct)
+    # Safety
+    "LLM-LAT/harmful-dataset",                   # safety (harmful prompts, DPO format)
+    "JailbreakV-28K/JailBreakV-28k",             # safety (jailbreak, multimodal)
 ]
 
 DIM_KEYS = [
