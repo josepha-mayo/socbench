@@ -371,13 +371,49 @@ export default function DatasetDetailPage() {
 
       {/* Training */}
       {dataset.training && typeof dataset.training.final_val_loss === "number" && (
-        <div className="border border-arxiv-border rounded p-4">
+        <div className="border border-arxiv-border rounded p-4 mb-8">
           <h3 className="text-sm font-serif font-bold mb-2">Training Impact (GPT-2 124M, up to 1B tokens)</h3>
-          <div className="text-xs font-sans text-arxiv-gray mb-2">
-            Final Val Loss: <span className="font-mono font-bold">{dataset.training.final_val_loss.toFixed(4)}</span>
-            {" · "}
-            Convergence: <span className="font-mono">step {dataset.training.convergence_steps ?? "—"}</span>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm font-sans mb-4">
+            <div>
+              <div className="text-xs text-arxiv-gray mb-1">Final Val Loss</div>
+              <span className="font-mono font-bold text-arxiv-dark">{dataset.training.final_val_loss.toFixed(4)}</span>
+            </div>
+            <div>
+              <div className="text-xs text-arxiv-gray mb-1">Perplexity</div>
+              <span className="font-mono font-bold text-arxiv-dark">{Math.exp(dataset.training.final_val_loss).toFixed(2)}</span>
+            </div>
+            <div>
+              <div className="text-xs text-arxiv-gray mb-1">Convergence</div>
+              <span className="font-mono font-bold text-arxiv-dark">step {dataset.training.convergence_steps ?? "—"}</span>
+            </div>
+            <div>
+              <div className="text-xs text-arxiv-gray mb-1">Training Score</div>
+              <span className="font-mono font-bold text-green-700">
+                {Math.round((dataset.training.eval_scores?.normalized_score ?? 0) * 100)}/100
+              </span>
+            </div>
+            {dataset.training.model_config && (
+              <>
+                <div>
+                  <div className="text-xs text-arxiv-gray mb-1">GPU</div>
+                  <span className="font-mono text-xs text-arxiv-dark">{dataset.training.model_config.gpu || "—"}</span>
+                </div>
+                <div>
+                  <div className="text-xs text-arxiv-gray mb-1">Batch Size</div>
+                  <span className="font-mono text-xs text-arxiv-dark">{dataset.training.model_config.batch_size ?? "—"}</span>
+                </div>
+                <div>
+                  <div className="text-xs text-arxiv-gray mb-1">Tokens Seen</div>
+                  <span className="font-mono text-xs text-arxiv-dark">{dataset.training.tokens_seen?.toLocaleString() ?? "—"}</span>
+                </div>
+                <div>
+                  <div className="text-xs text-arxiv-gray mb-1">FP16</div>
+                  <span className="font-mono text-xs text-arxiv-dark">{dataset.training.model_config.use_fp16 ? "Yes" : "No"}</span>
+                </div>
+              </>
+            )}
           </div>
+          <div className="text-xs font-sans text-arxiv-gray mb-1">Validation Loss Curve</div>
           <LossCurve losses={dataset.training.loss_curve} />
         </div>
       )}

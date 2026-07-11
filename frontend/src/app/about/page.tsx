@@ -71,13 +71,31 @@ export default function AboutPage() {
           FineWeb (quality 0.82), OpenCoder (quality 0.80), Stack V2 (quality 0.78).
         </p>
 
+        <h3 className="text-lg font-serif font-bold pt-4">Evaluation Levels</h3>
+        <p className="text-arxiv-gray">
+          Socbench evaluates datasets in three levels, each more expensive and more
+          informative than the last.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+          {[
+            ["Level 1 — Automatic Scoring", "Cheap, fast heuristics. Gopher rules, FineWeb/DCLM filters, diversity, documentation, freshness, popularity."],
+            ["Level 2 — Contamination & Repetition", "13-gram overlap with eval benchmarks (GSM8K, MMLU, HumanEval, MBPP). Exact-row duplication."],
+            ["Level 3 — Training Impact", "Train GPT-2 124M on the dataset for 1B tokens on Kaggle 2x T4. Final loss, perplexity, convergence, and relative quality."],
+          ].map(([title, desc]) => (
+            <div key={title} className="border border-arxiv-border rounded p-3">
+              <strong className="font-sans text-sm block mb-1">{title}</strong>
+              <p className="text-xs text-arxiv-gray">{desc}</p>
+            </div>
+          ))}
+        </div>
+
         <h3 className="text-lg font-serif font-bold pt-4">Training Impact (Stage 3)</h3>
         <p className="text-arxiv-gray">
           For top-tier datasets only. Train GPT-2 124M from scratch on each dataset
-          for 1B tokens. Measure loss curves. Relative comparison. Research proves
-          125M models predict data quality scaling for 3B models (Ankner et al., 2024).
-          This stage earns its compute — it runs only when the result answers a question
-          nobody else can answer.
+          for 1B tokens on Kaggle 2x T4. Measure loss curves, perplexity, and convergence.
+          Relative comparison across all runs. Research proves 125M models predict data
+          quality scaling for 3B models (Ankner et al., 2024). This stage earns its
+          compute — it runs only when the result answers a question nobody else can answer.
         </p>
 
         <h3 className="text-lg font-serif font-bold pt-4">Discovery Pipeline</h3>

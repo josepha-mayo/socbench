@@ -17,6 +17,7 @@ interface Dataset {
   contaminated: boolean;
   repetition_pct: number | null;
   combined_score: number | null;
+  training_score: number | null;
   downloads: number | null;
   likes: number | null;
   category: string;
@@ -61,12 +62,13 @@ const SORT_OPTIONS = [
   { key: "quality", label: "Quality" },
   { key: "diversity", label: "Diversity" },
   { key: "combined_score", label: "Combined" },
+  { key: "training_score", label: "Training" },
   { key: "popularity", label: "Popularity" },
   { key: "freshness", label: "Freshness" },
 ];
 
 function score100(score: number | null) {
-  if (score === null) return <span className="text-arxiv-gray text-xs">—</span>;
+  if (score === null || score === undefined) return <span className="text-arxiv-gray text-xs">—</span>;
   const val = Math.round(score);
   const color =
     val >= 70 ? "text-green-700" : val >= 40 ? "text-yellow-700" : "text-red-700";
@@ -78,7 +80,7 @@ function score100(score: number | null) {
 }
 
 function scoreBar(score: number | null) {
-  if (score === null) return <span className="text-arxiv-gray text-xs">—</span>;
+  if (score === null || score === undefined) return <span className="text-arxiv-gray text-xs">—</span>;
   const pct = Math.round(score);
   const color =
     pct >= 70 ? "bg-green-500" : pct >= 40 ? "bg-yellow-500" : "bg-red-500";
@@ -98,7 +100,7 @@ function scoreBar(score: number | null) {
 }
 
 function formatNumber(n: number | null) {
-  if (n === null) return "—";
+  if (n === null || n === undefined) return "—";
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return n.toLocaleString();
@@ -114,9 +116,25 @@ function formatDate(dateStr: string | null) {
   }
 }
 
+function categorySlug(cat: string): string {
+  const map: Record<string, string> = {
+    "Pretraining": "pretraining",
+    "SFT": "sft",
+    "Preference Opt.": "preference",
+    "Agent Traces": "agent",
+    "Tool Calling": "tooluse",
+    "Reasoning": "reasoning",
+    "Task": "task",
+    "Multimodal": "multimodal",
+    "Safety": "safety",
+  };
+  return map[cat] || "";
+}
+
 export default function LeaderboardPage() {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [category, setCategory] = useState("All");
   const [sortBy, setSortBy] = useState("quality");
   const [showEvalModal, setShowEvalModal] = useState(false);
@@ -126,14 +144,22 @@ export default function LeaderboardPage() {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
+    setLoading(true);
+    setError(null);
     const categoryParam = category === "All" ? "" : categorySlug(category);
     fetch(`/api/leaderboard?category=${encodeURIComponent(categoryParam)}&sort=${sortBy}&limit=200`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`Backend returned ${r.status}`);
+        return r.json();
+      })
       .then((data) => {
         setDatasets(data as Dataset[]);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((e) => {
+        setLoading(false);
+        setError(e.message || "Could not connect to backend.");
+      });
   }, [category, sortBy]);
 
   const stats = (() => {
@@ -142,24 +168,10 @@ export default function LeaderboardPage() {
     const avgQ = Math.round(datasets.reduce((s, d) => s + (d.quality ?? 0), 0) / n);
     const contaminated = datasets.filter(d => d.contaminated).length;
     const highRep = datasets.filter(d => (d.repetition_pct ?? 0) > 20).length;
+    const trained = datasets.filter(d => (d.training_score ?? null) !== null).length;
     const topDs = [...datasets].sort((a, b) => (b.quality ?? 0) - (a.quality ?? 0))[0];
-    return { n, avgQ, contaminated, highRep, topDs };
+    return { n, avgQ, contaminated, highRep, trained, topDs };
   })();
-
-  function categorySlug(cat: string): string {
-    const map: Record<string, string> = {
-      "Pretraining": "pretraining",
-      "SFT": "sft",
-      "Preference Opt.": "preference",
-      "Agent Traces": "agent",
-      "Tool Calling": "tooluse",
-      "Reasoning": "reasoning",
-      "Task": "task",
-      "Multimodal": "multimodal",
-      "Safety": "safety",
-    };
-    return map[cat] || "";
-  }
 
   const filtered = datasets.filter(ds => {
     if (search && !ds.hf_id.toLowerCase().includes(search.toLowerCase())) return false;
@@ -206,12 +218,12 @@ export default function LeaderboardPage() {
           "The unexamined dataset is not worth training on."
         </p>
         <p className="text-xs font-sans text-arxiv-gray mt-1">
-          Multi-dimension quality scoring (0-100): quality, diversity, utility, documentation, freshness, contamination, and repetition.
+          Multi-dimension quality scoring (0-100): quality, diversity, utility, documentation, freshness, contamination, repetition, and training impact.
         </p>
       </div>
 
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
           <div className="border border-arxiv-border rounded p-3 bg-arxiv-lightgray">
             <div className="text-[10px] font-sans uppercase tracking-wide text-arxiv-gray">Datasets</div>
             <div className="text-xl font-mono font-bold text-arxiv-dark">{stats.n}</div>
@@ -221,11 +233,15 @@ export default function LeaderboardPage() {
             <div className="text-xl font-mono font-bold text-arxiv-dark">{stats.avgQ}<span className="text-xs text-arxiv-gray">/100</span></div>
           </div>
           <div className="border border-arxiv-border rounded p-3 bg-arxiv-lightgray">
+            <div className="text-[10px] font-sans uppercase tracking-wide text-arxiv-gray">Training Evals</div>
+            <div className="text-xl font-mono font-bold text-arxiv-dark">{stats.trained}</div>
+          </div>
+          <div className="border border-arxiv-border rounded p-3 bg-arxiv-lightgray">
             <div className="text-[10px] font-sans uppercase tracking-wide text-arxiv-gray">Contaminated</div>
             <div className={`text-xl font-mono font-bold ${stats.contaminated > 0 ? "text-red-700" : "text-green-700"}`}>{stats.contaminated}</div>
           </div>
           <div className="border border-arxiv-border rounded p-3 bg-arxiv-lightgray">
-            <div className="text-[10px] font-sans uppercase tracking-wide text-arxiv-gray">High Repetition (&gt;20%)</div>
+            <div className="text-[10px] font-sans uppercase tracking-wide text-arxiv-gray">High Repetition</div>
             <div className={`text-xl font-mono font-bold ${stats.highRep > 5 ? "text-red-700" : stats.highRep > 0 ? "text-yellow-700" : "text-green-700"}`}>{stats.highRep}</div>
           </div>
         </div>
@@ -271,9 +287,22 @@ export default function LeaderboardPage() {
       </div>
 
       {loading ? (
-        <p className="text-arxiv-gray font-sans">Loading...</p>
+        <div className="p-8 border border-arxiv-border rounded bg-arxiv-lightgray text-center">
+          <p className="text-arxiv-gray font-sans">Loading datasets...</p>
+        </div>
+      ) : error ? (
+        <div className="p-8 border border-red-200 rounded bg-red-50 text-center">
+          <p className="text-red-700 font-sans font-medium">{error}</p>
+          <p className="text-red-600 text-xs font-sans mt-2">
+            Make sure the backend is running on <code className="bg-white px-1 rounded">http://localhost:8000</code> or the API is reachable.
+          </p>
+        </div>
+      ) : datasets.length === 0 ? (
+        <div className="p-8 border border-arxiv-border rounded bg-arxiv-lightgray text-center">
+          <p className="text-arxiv-gray font-sans">No datasets found. Start the backend to load the leaderboard.</p>
+        </div>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto border border-arxiv-border rounded">
           <table className="arxiv-table">
             <thead>
               <tr>
@@ -282,8 +311,8 @@ export default function LeaderboardPage() {
                 <th className="w-[90px]">Category</th>
                 <th className="w-[70px]">Quality</th>
                 <th className="w-[70px]">Diversity</th>
-                <th className="w-[70px]">Docs</th>
-                <th className="w-[70px]">Fresh</th>
+                <th className="w-[70px]">Combined</th>
+                <th className="w-[70px]">Training</th>
                 <th className="w-[60px]">Repetition</th>
                 <th className="w-[60px]">Contam.</th>
                 <th className="w-[90px]">Created</th>
@@ -327,8 +356,8 @@ export default function LeaderboardPage() {
                   </td>
                   <td>{scoreBar(ds.quality)}</td>
                   <td>{scoreBar(ds.diversity)}</td>
-                  <td>{score100(ds.documentation)}</td>
-                  <td>{score100(ds.freshness)}</td>
+                  <td>{score100(ds.combined_score)}</td>
+                  <td>{score100(ds.training_score)}</td>
                   <td className="font-mono text-xs">
                     {ds.repetition_pct != null ? (
                       <span className={ds.repetition_pct > 20 ? "text-red-700 font-bold" : ds.repetition_pct > 5 ? "text-yellow-700" : "text-green-700"}>
@@ -361,11 +390,10 @@ export default function LeaderboardPage() {
 
       <div className="mt-8 p-4 border border-arxiv-border rounded bg-arxiv-lightgray text-xs font-sans text-arxiv-gray">
         <strong className="text-arxiv-dark">Methodology:</strong> Multi-dimension scoring using
-        Gopher quality rules (Rae et al., 2021), FineWeb filters (Penedo et al., NeurIPS 2024),
-        DCLM filtering (Li et al., NeurIPS 2024), MinHash deduplication (SlimPajama),
-        and 13-gram contamination checking (GPT-3 methodology). Scores are on a 0-100 scale.
-        Contamination flag triggers when benchmark overlap exceeds 1%. Repetition % measures
-        exact-row duplication. Categories are hierarchically classified.
+        Gopher quality rules, FineWeb filters, DCLM filtering, MinHash deduplication,
+        13-gram contamination checking, and GPT-2 124M training impact measurement (Kaggle 2x T4).
+        Scores are on a 0-100 scale. Contamination flag triggers when benchmark overlap exceeds 1%.
+        Repetition % measures exact-row duplication. Categories are hierarchically classified.
       </div>
 
       {showEvalModal && (

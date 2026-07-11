@@ -149,6 +149,8 @@ async def get_dataset(hf_id: str):
                     "final_val_loss": training.final_val_loss,
                     "loss_curve": training.loss_curve,
                     "convergence_steps": training.convergence_steps,
+                    "tokens_seen": training.tokens_seen,
+                    "model_config": training.model_config,
                     "eval_scores": training.eval_scores,
                 } if training else None,
             }
