@@ -9,6 +9,9 @@ server.err
 *.out
 socbench.db
 
+# Kaggle notebooks/scripts (not part of main app)
+kaggle_socbench/
+
 # Contamination checker benchmark n-gram cache
 backend/socbench/contamination/.cache/
 
