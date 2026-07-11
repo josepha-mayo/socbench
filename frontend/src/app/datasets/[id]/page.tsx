@@ -33,6 +33,7 @@ interface DatasetDetail {
   description: string | null;
   license: string | null;
   tags: string[];
+  source_url: string | null;
   quality: { score: number; details: Record<string, any> };
   diversity: { score: number; details: Record<string, any> };
   utility: { score: number; details: Record<string, any> };
@@ -42,15 +43,21 @@ interface DatasetDetail {
   pii_safety: { score: number; details: Record<string, any> };
   coverage: Record<string, any>;
   contamination_rate: number;
+  repetition_pct: number | null;
   provenance: ProvenanceEntry[];
   category_metrics: ScoreDetail[];
   recommendations?: { best_for: RecEntry[]; good_for: RecEntry[]; not_for: RecEntry[] };
-  metadata: { downloads: number; likes: number; license: string };
+  metadata: { downloads: number; likes: number; license: string; created_at?: string | null };
   training: any;
 }
 
-function scoreBar(label: string, score: number) {
-  const val = Math.round(score * 100);
+function toScore(score: number | null | undefined): number {
+  if (score === null || score === undefined || Number.isNaN(score)) return 0;
+  return Math.max(0, Math.min(1, score));
+}
+
+function scoreBar(label: string, score: number | null | undefined) {
+  const val = Math.round(toScore(score) * 100);
   const color = val >= 70 ? "bg-green-500" : val >= 40 ? "bg-yellow-500" : "bg-red-500";
   const textColor = val >= 70 ? "text-green-700" : val >= 40 ? "text-yellow-700" : "text-red-700";
   return (
@@ -66,19 +73,21 @@ function scoreBar(label: string, score: number) {
   );
 }
 
-function DomainBar({ domains }: { domains: Record<string, number> }) {
-  const total = Object.values(domains).reduce((a, b) => a + b, 0) || 1;
+function DomainBar({ domains }: { domains: Record<string, number> | null | undefined }) {
+  if (!domains || typeof domains !== "object") return <span className="text-xs text-arxiv-gray">—</span>;
+  const values = Object.values(domains).filter((v) => typeof v === "number" && !Number.isNaN(v));
+  const total = values.reduce((a, b) => a + b, 0) || 1;
   const colors = ["bg-blue-500", "bg-green-500", "bg-yellow-500", "bg-purple-500", "bg-red-500", "bg-indigo-500", "bg-pink-500", "bg-teal-500"];
   return (
     <div className="h-4 flex rounded-full overflow-hidden bg-arxiv-lightgray">
       {Object.entries(domains).slice(0, 8).map(([key, val], i) => {
-        const pct = (val / total) * 100;
+        const pct = (Number(val) / total) * 100;
         return (
           <div
             key={key}
             className={`h-full ${colors[i % colors.length]}`}
             style={{ width: `${pct}%` }}
-            title={`${key}: ${(val * 100).toFixed(0)}%`}
+            title={`${key}: ${(Number(val) * 100).toFixed(0)}%`}
           />
         );
       })}
@@ -86,14 +95,16 @@ function DomainBar({ domains }: { domains: Record<string, number> }) {
   );
 }
 
-function LossCurve({ losses }: { losses: number[] }) {
-  if (!losses?.length) return null;
-  const maxLoss = Math.max(...losses);
-  const minLoss = Math.min(...losses);
+function LossCurve({ losses }: { losses: number[] | null | undefined }) {
+  if (!losses || !Array.isArray(losses) || losses.length === 0) return null;
+  const clean = losses.filter((x) => typeof x === "number" && !Number.isNaN(x));
+  if (clean.length === 0) return null;
+  const maxLoss = Math.max(...clean);
+  const minLoss = Math.min(...clean);
   const range = maxLoss - minLoss || 1;
   return (
     <div className="flex items-end gap-px h-24 mt-2">
-      {losses.map((l, i) => {
+      {clean.map((l, i) => {
         const h = ((l - minLoss) / range) * 100;
         return (
           <div
@@ -108,50 +119,104 @@ function LossCurve({ losses }: { losses: number[] }) {
   );
 }
 
+function formatDate(dateStr: string | null | undefined) {
+  if (!dateStr) return "—";
+  try {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+  } catch {
+    return "—";
+  }
+}
+
+function StarRating({ rating }: { rating: number | null | undefined }) {
+  const n = Number(rating);
+  if (Number.isNaN(n) || n < 0) return null;
+  const filled = Math.max(0, Math.min(5, Math.round(n)));
+  const empty = 5 - filled;
+  return (
+    <span className="text-arxiv-red tracking-tight">
+      {"★".repeat(filled)}
+      {"☆".repeat(empty)}
+    </span>
+  );
+}
+
+function SourceLink({ dataset }: { dataset: DatasetDetail }) {
+  const hfUrl = dataset.hf_id ? `https://huggingface.co/datasets/${dataset.hf_id}` : null;
+  const sourceUrl = dataset.source_url || hfUrl;
+  if (!sourceUrl) return null;
+  const label = dataset.source_url ? "View source" : "View on HuggingFace";
+  return (
+    <a
+      href={sourceUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-arxiv-link hover:text-arxiv-hover no-underline font-medium"
+    >
+      {label} →
+    </a>
+  );
+}
+
 export default function DatasetDetailPage() {
   const params = useParams();
-  const hfId = decodeURIComponent(params.id as string);
+  const hfId = decodeURIComponent((params.id as string) || "");
   const [dataset, setDataset] = useState<DatasetDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
+    setError(null);
     fetch(`/api/datasets/${encodeURIComponent(hfId)}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((data) => {
         setDataset(data as DatasetDetail);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        setLoading(false);
+        setError("Failed to load dataset.");
+      });
   }, [hfId]);
 
   if (loading) return <p className="text-arxiv-gray font-sans">Loading...</p>;
+  if (error) return <p className="text-arxiv-gray font-sans">{error}</p>;
   if (!dataset) return <p className="text-arxiv-gray font-sans">Dataset not found.</p>;
 
+  const displayId = dataset.hf_id || hfId;
+  const displayName = dataset.name || displayId;
   const contPct = Math.round((dataset.contamination_rate || 0) * 1000) / 10;
   const isContaminated = contPct > 1;
+  const repPct = dataset.repetition_pct;
+  const sourceUrl = dataset.source_url || `https://huggingface.co/datasets/${displayId}`;
+  const createdAt = dataset.metadata?.created_at;
 
   return (
     <div>
       <div className="mb-6">
         <a href="/" className="text-xs font-sans text-arxiv-gray hover:text-arxiv-red no-underline">← Back to leaderboard</a>
-        <h2 className="text-2xl font-serif font-bold text-arxiv-dark mt-2">{dataset.hf_id}</h2>
+        <h2 className="text-2xl font-serif font-bold text-arxiv-dark mt-2">{displayName}</h2>
         <div className="flex flex-wrap gap-3 mt-1 text-xs font-sans items-center">
-          <span className="bg-arxiv-red text-white px-2 py-0.5 rounded-full">{dataset.category_label}</span>
-          {dataset.metadata.license && <span className="text-arxiv-gray">License: {dataset.metadata.license}</span>}
-          <span className="text-arxiv-gray">Downloads: {dataset.metadata.downloads.toLocaleString()}</span>
-          <span className="text-arxiv-gray">Likes: {dataset.metadata.likes}</span>
-          <a
-            href={`https://huggingface.co/datasets/${dataset.hf_id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-arxiv-link hover:text-arxiv-hover no-underline font-medium"
-          >
-            View on HuggingFace →
-          </a>
+          <span className="bg-arxiv-red text-white px-2 py-0.5 rounded-full">{dataset.category_label || dataset.category || "—"}</span>
+          {dataset.metadata?.license && <span className="text-arxiv-gray">License: {dataset.metadata.license}</span>}
+          <span className="text-arxiv-gray">Downloads: {dataset.metadata?.downloads?.toLocaleString() ?? "—"}</span>
+          <span className="text-arxiv-gray">Likes: {dataset.metadata?.likes ?? "—"}</span>
+          {createdAt && <span className="text-arxiv-gray">Created: {formatDate(createdAt)}</span>}
+          <SourceLink dataset={dataset} />
         </div>
         {dataset.description && (
           <p className="text-sm font-sans text-arxiv-gray mt-3 leading-relaxed line-clamp-3">{dataset.description}</p>
+        )}
+        {dataset.tags && dataset.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-3">
+            {dataset.tags.slice(0, 8).map((t) => (
+              <span key={t} className="text-[9px] font-sans bg-arxiv-lightgray border border-arxiv-border px-1.5 py-0.5 rounded text-arxiv-gray">
+                {t}
+              </span>
+            ))}
+          </div>
         )}
       </div>
 
@@ -159,15 +224,15 @@ export default function DatasetDetailPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <div className="border border-arxiv-border rounded p-4">
           <h3 className="text-sm font-serif font-bold mb-3">Core Dimensions</h3>
-          {scoreBar("Quality", dataset.quality.score)}
-          {scoreBar("Diversity", dataset.diversity.score)}
-          {scoreBar("Utility", dataset.utility.score)}
+          {scoreBar("Quality", dataset.quality?.score)}
+          {scoreBar("Diversity", dataset.diversity?.score)}
+          {scoreBar("Utility", dataset.utility?.score)}
         </div>
         <div className="border border-arxiv-border rounded p-4">
           <h3 className="text-sm font-serif font-bold mb-3">Supporting</h3>
-          {scoreBar("Documentation", dataset.documentation.score)}
-          {scoreBar("Popularity", dataset.popularity.score)}
-          {scoreBar("Freshness", dataset.freshness.score)}
+          {scoreBar("Documentation", dataset.documentation?.score)}
+          {scoreBar("Popularity", dataset.popularity?.score)}
+          {scoreBar("Freshness", dataset.freshness?.score)}
         </div>
       </div>
 
@@ -177,7 +242,7 @@ export default function DatasetDetailPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm font-sans">
           <div>
             <div className="text-xs text-arxiv-gray mb-1">PII Safety</div>
-            <span className="font-mono font-bold text-green-700">{Math.round(dataset.pii_safety.score * 100)}/100</span>
+            <span className="font-mono font-bold text-green-700">{Math.round(toScore(dataset.pii_safety?.score) * 100)}/100</span>
           </div>
           <div>
             <div className="text-xs text-arxiv-gray mb-1">Contamination</div>
@@ -189,15 +254,15 @@ export default function DatasetDetailPage() {
             )}
           </div>
           <div>
-            <div className="text-xs text-arxiv-gray mb-1">Diversity Details</div>
-            <span className="font-mono text-xs text-arxiv-gray">
-              TTR: {dataset.diversity?.details?.type_token_ratio ?? "—"}
+            <div className="text-xs text-arxiv-gray mb-1">Repetition</div>
+            <span className={`font-mono font-bold ${repPct != null && repPct > 20 ? "text-red-700" : "text-green-700"}`}>
+              {repPct != null ? `${repPct.toFixed(1)}%` : "—"}
             </span>
           </div>
           <div>
             <div className="text-xs text-arxiv-gray mb-1">Quality Breakdown</div>
             <span className="font-mono text-xs text-arxiv-gray">
-              Gopher: {Math.round((dataset.quality?.details?.gopher_pass ?? 0) * 100)}%
+              Gopher: {Math.round(toScore(dataset.quality?.details?.gopher_pass) * 100)}%
             </span>
           </div>
         </div>
@@ -210,7 +275,7 @@ export default function DatasetDetailPage() {
           <DomainBar domains={dataset.coverage.domain_distribution} />
           <div className="flex flex-wrap gap-2 mt-2 text-[10px] font-mono text-arxiv-gray">
             {Object.entries(dataset.coverage.domain_distribution as Record<string, number>).slice(0, 8).map(([k, v]) => (
-              <span key={k}>{k}: {(v * 100).toFixed(0)}%</span>
+              <span key={k}>{k}: {(Number(v) * 100).toFixed(0)}%</span>
             ))}
           </div>
         </div>
@@ -219,43 +284,43 @@ export default function DatasetDetailPage() {
       {/* Recommendations */}
       {dataset.recommendations && (
         <div className="border border-arxiv-border rounded p-4 mb-8">
-          <h3 className="text-sm font-serif font-bold mb-3">Best for — what this dataset is actually good for</h3>
-          {dataset.recommendations.best_for.length > 0 && (
+          <h3 className="text-sm font-serif font-bold mb-3">Recommendations</h3>
+          {dataset.recommendations.best_for?.length > 0 && (
             <div className="mb-3">
               <div className="text-[11px] font-sans uppercase tracking-wide text-green-700 mb-1">Best for</div>
               <div className="flex flex-col gap-1">
                 {dataset.recommendations.best_for.map((r) => (
                   <div key={r.category_key} className="flex items-center gap-2 text-xs font-sans">
                     <span className="w-32 shrink-0 font-medium">{r.label}</span>
-                    <span className="text-arxiv-red tracking-tight">{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</span>
+                    <StarRating rating={r.rating} />
                     <span className="text-arxiv-gray">— {r.reasoning}</span>
                   </div>
                 ))}
               </div>
             </div>
           )}
-          {dataset.recommendations.good_for.length > 0 && (
+          {dataset.recommendations.good_for?.length > 0 && (
             <div className="mb-3">
               <div className="text-[11px] font-sans uppercase tracking-wide text-arxiv-gray mb-1">Good for</div>
               <div className="flex flex-col gap-1">
                 {dataset.recommendations.good_for.map((r) => (
                   <div key={r.category_key} className="flex items-center gap-2 text-xs font-sans">
                     <span className="w-32 shrink-0 font-medium">{r.label}</span>
-                    <span className="text-arxiv-red tracking-tight">{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</span>
+                    <StarRating rating={r.rating} />
                     <span className="text-arxiv-gray">— {r.reasoning}</span>
                   </div>
                 ))}
               </div>
             </div>
           )}
-          {dataset.recommendations.not_for.length > 0 && (
+          {dataset.recommendations.not_for?.length > 0 && (
             <div>
               <div className="text-[11px] font-sans uppercase tracking-wide text-red-700 mb-1">Not recommended for</div>
               <div className="flex flex-col gap-1">
                 {dataset.recommendations.not_for.map((r) => (
                   <div key={r.category_key} className="flex items-center gap-2 text-xs font-sans">
                     <span className="w-32 shrink-0 font-medium">{r.label}</span>
-                    <span className="text-arxiv-red tracking-tight">{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</span>
+                    <StarRating rating={r.rating} />
                     <span className="text-arxiv-gray">— {r.reasoning}</span>
                   </div>
                 ))}
@@ -305,17 +370,25 @@ export default function DatasetDetailPage() {
       )}
 
       {/* Training */}
-      {dataset.training && (
+      {dataset.training && typeof dataset.training.final_val_loss === "number" && (
         <div className="border border-arxiv-border rounded p-4">
-          <h3 className="text-sm font-serif font-bold mb-2">Training Impact (GPT-2 124M, 1B tokens)</h3>
+          <h3 className="text-sm font-serif font-bold mb-2">Training Impact (GPT-2 124M, up to 1B tokens)</h3>
           <div className="text-xs font-sans text-arxiv-gray mb-2">
             Final Val Loss: <span className="font-mono font-bold">{dataset.training.final_val_loss.toFixed(4)}</span>
             {" · "}
-            Convergence: <span className="font-mono">step {dataset.training.convergence_steps}</span>
+            Convergence: <span className="font-mono">step {dataset.training.convergence_steps ?? "—"}</span>
           </div>
           <LossCurve losses={dataset.training.loss_curve} />
         </div>
       )}
+
+      {/* Source link fallback for all datasets */}
+      <div className="mt-8 p-4 border border-arxiv-border rounded bg-arxiv-lightgray text-xs font-sans">
+        <strong className="text-arxiv-dark">Source:</strong>{" "}
+        <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="text-arxiv-link hover:text-arxiv-hover no-underline">
+          {sourceUrl}
+        </a>
+      </div>
     </div>
   );
 }

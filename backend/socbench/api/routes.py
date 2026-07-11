@@ -117,6 +117,7 @@ async def get_dataset(hf_id: str):
                 "description": ds.description,
                 "license": ds.license,
                 "tags": ds.tags,
+                "source_url": ds.source_url,
                 "category": cat_key,
                 "category_label": cat_label,
                 "quality": block(lb.quality if lb else None),

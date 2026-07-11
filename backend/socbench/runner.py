@@ -256,9 +256,36 @@ async def run_socbench_scoring(
 
     if not samples:
         return {
-            "dataset_id": dataset_id,
-            "error": "Could not fetch samples",
+            "hf_id": dataset_id,
+            "name": metadata.get("name", dataset_id),
+            "description": metadata.get("description"),
+            "license": metadata.get("license"),
+            "tags": tags,
+            "source_url": None,
             "category": category_key,
+            "category_label": "",
+            "quality": {"score": 0.0, "details": {}},
+            "diversity": {"score": 0.0, "details": {}},
+            "utility": {"score": 0.0, "details": {}},
+            "documentation": {"score": 0.0, "details": {}},
+            "popularity": {"score": 0.0, "details": {}},
+            "freshness": {"score": 0.0, "details": {}},
+            "pii_safety": {"score": 1.0, "details": {}},
+            "coverage": {},
+            "contamination_rate": 0.0,
+            "provenance": [],
+            "category_metrics": [],
+            "recommendations": {"best_for": [], "good_for": [], "not_for": []},
+            "metadata": {
+                "tags": tags,
+                "license": metadata.get("license"),
+                "downloads": metadata.get("downloads", 0),
+                "likes": metadata.get("likes", 0),
+                "last_modified": metadata.get("last_modified"),
+                "created_at": metadata.get("created_at"),
+            },
+            "training": None,
+            "error": "Could not fetch samples",
         }
 
     # Run multi-dimension scoring
@@ -338,7 +365,12 @@ async def run_socbench_scoring(
     elapsed = time.time() - start
 
     return {
-        "dataset_id": dataset_id,
+        "hf_id": dataset_id,
+        "name": metadata.get("name", dataset_id),
+        "description": metadata.get("description"),
+        "license": metadata.get("license"),
+        "tags": tags,
+        "source_url": None,
         "category": score.category,
         "category_label": score.category_label,
         "quality": {
@@ -401,6 +433,7 @@ async def run_socbench_scoring(
             "last_modified": metadata.get("last_modified"),
             "created_at": metadata.get("created_at"),
         },
+        "training": None,
         "samples_fetched": len(samples),
         "elapsed_seconds": round(elapsed, 2),
     }
