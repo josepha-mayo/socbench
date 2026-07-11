@@ -10,12 +10,6 @@ interface ScoreDetail {
   warnings: string[];
 }
 
-interface ContaminationDetail {
-  benchmark: string;
-  overlap_rate: number;
-  details: { overlap_count: number; total_eval: number };
-}
-
 interface ProvenanceEntry {
   model_name: string;
   paper_title: string;
@@ -55,17 +49,18 @@ interface DatasetDetail {
   training: any;
 }
 
-function scoreBar(label: string, score: number, maxWidth: number = 100) {
-  const pct = Math.round(score * 100);
-  const color = score >= 0.7 ? "bg-green-500" : score >= 0.4 ? "bg-yellow-500" : "bg-red-500";
+function scoreBar(label: string, score: number) {
+  const val = Math.round(score * 100);
+  const color = val >= 70 ? "bg-green-500" : val >= 40 ? "bg-yellow-500" : "bg-red-500";
+  const textColor = val >= 70 ? "text-green-700" : val >= 40 ? "text-yellow-700" : "text-red-700";
   return (
     <div className="mb-2">
       <div className="flex justify-between text-xs mb-1">
         <span className="font-sans font-medium">{label}</span>
-        <span className="font-mono text-arxiv-gray">{score.toFixed(3)}</span>
+        <span className={`font-mono font-bold ${textColor}`}>{val}/100</span>
       </div>
-      <div className={`h-2.5 bg-arxiv-lightgray rounded-full overflow-hidden`}>
-        <div className={`h-full ${color} rounded-full`} style={{ width: `${pct}%` }} />
+      <div className="h-2.5 bg-arxiv-lightgray rounded-full overflow-hidden">
+        <div className={`h-full ${color} rounded-full`} style={{ width: `${val}%` }} />
       </div>
     </div>
   );
@@ -133,17 +128,31 @@ export default function DatasetDetailPage() {
   if (loading) return <p className="text-arxiv-gray font-sans">Loading...</p>;
   if (!dataset) return <p className="text-arxiv-gray font-sans">Dataset not found.</p>;
 
+  const contPct = Math.round((dataset.contamination_rate || 0) * 1000) / 10;
+  const isContaminated = contPct > 1;
+
   return (
     <div>
       <div className="mb-6">
-        <a href="/" className="text-xs font-sans text-arxiv-gray hover:text-arxiv-red">← Back</a>
+        <a href="/" className="text-xs font-sans text-arxiv-gray hover:text-arxiv-red no-underline">← Back to leaderboard</a>
         <h2 className="text-2xl font-serif font-bold text-arxiv-dark mt-2">{dataset.hf_id}</h2>
-        <div className="flex gap-3 mt-1 text-xs font-sans">
+        <div className="flex flex-wrap gap-3 mt-1 text-xs font-sans items-center">
           <span className="bg-arxiv-red text-white px-2 py-0.5 rounded-full">{dataset.category_label}</span>
           {dataset.metadata.license && <span className="text-arxiv-gray">License: {dataset.metadata.license}</span>}
           <span className="text-arxiv-gray">Downloads: {dataset.metadata.downloads.toLocaleString()}</span>
           <span className="text-arxiv-gray">Likes: {dataset.metadata.likes}</span>
+          <a
+            href={`https://huggingface.co/datasets/${dataset.hf_id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-arxiv-link hover:text-arxiv-hover no-underline font-medium"
+          >
+            View on HuggingFace →
+          </a>
         </div>
+        {dataset.description && (
+          <p className="text-sm font-sans text-arxiv-gray mt-3 leading-relaxed line-clamp-3">{dataset.description}</p>
+        )}
       </div>
 
       {/* Core dimensions */}
@@ -162,6 +171,38 @@ export default function DatasetDetailPage() {
         </div>
       </div>
 
+      {/* Safety & Contamination */}
+      <div className="border border-arxiv-border rounded p-4 mb-8">
+        <h3 className="text-sm font-serif font-bold mb-3">Safety & Contamination</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm font-sans">
+          <div>
+            <div className="text-xs text-arxiv-gray mb-1">PII Safety</div>
+            <span className="font-mono font-bold text-green-700">{Math.round(dataset.pii_safety.score * 100)}/100</span>
+          </div>
+          <div>
+            <div className="text-xs text-arxiv-gray mb-1">Contamination</div>
+            <span className={`font-mono font-bold ${isContaminated ? "text-red-700" : "text-green-700"}`}>
+              {contPct}%
+            </span>
+            {isContaminated && (
+              <span className="ml-2 text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full font-medium">CONTAMINATED</span>
+            )}
+          </div>
+          <div>
+            <div className="text-xs text-arxiv-gray mb-1">Diversity Details</div>
+            <span className="font-mono text-xs text-arxiv-gray">
+              TTR: {dataset.diversity?.details?.type_token_ratio ?? "—"}
+            </span>
+          </div>
+          <div>
+            <div className="text-xs text-arxiv-gray mb-1">Quality Breakdown</div>
+            <span className="font-mono text-xs text-arxiv-gray">
+              Gopher: {Math.round((dataset.quality?.details?.gopher_pass ?? 0) * 100)}%
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Coverage */}
       {dataset.coverage?.domain_distribution && (
         <div className="border border-arxiv-border rounded p-4 mb-8">
@@ -174,23 +215,6 @@ export default function DatasetDetailPage() {
           </div>
         </div>
       )}
-
-      {/* Safety */}
-      <div className="border border-arxiv-border rounded p-4 mb-8">
-        <h3 className="text-sm font-serif font-bold mb-2">Safety & Ethics</h3>
-        <div className="flex gap-6 text-sm font-sans">
-          <div>
-            <span className="text-arxiv-gray">PII Safety:</span>{" "}
-            <span className="font-mono font-bold text-green-700">{dataset.pii_safety.score.toFixed(3)}</span>
-          </div>
-          <div>
-            <span className="text-arxiv-gray">Contamination:</span>{" "}
-            <span className={`font-mono font-bold ${dataset.contamination_rate > 0.1 ? 'text-red-700' : dataset.contamination_rate > 0.05 ? 'text-yellow-700' : 'text-green-700'}`}>
-              {(dataset.contamination_rate * 100).toFixed(1)}%
-            </span>
-          </div>
-        </div>
-      </div>
 
       {/* Recommendations */}
       {dataset.recommendations && (
@@ -258,7 +282,7 @@ export default function DatasetDetailPage() {
                       <a href={p.paper_url} target="_blank" rel="noopener">{p.paper_title}</a>
                     ) : p.paper_title}
                   </td>
-                  <td>{p.verified ? <span className="text-green-700">✓</span> : <span className="text-arxiv-gray">?</span>}</td>
+                  <td>{p.verified ? <span className="text-green-700 font-bold">✓</span> : <span className="text-arxiv-gray">?</span>}</td>
                 </tr>
               ))}
             </tbody>
@@ -273,7 +297,7 @@ export default function DatasetDetailPage() {
           <div className="grid grid-cols-2 gap-3">
             {dataset.category_metrics.map((m) => (
               <div key={m.name} className="text-xs">
-                {scoreBar(m.name, m.score, 80)}
+                {scoreBar(m.name, m.score)}
               </div>
             ))}
           </div>

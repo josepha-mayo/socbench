@@ -19,12 +19,22 @@ interface DiscoveredDataset {
 const CAT_LABELS: Record<string, string> = {
   "pretraining-web": "Web",
   "pretraining-code": "Code",
-  "posttraining-sft": "Instruction",
-  "posttraining-agent": "Agent",
-  "posttraining-preference": "Pref/DPO",
+  "pretraining-math": "Math",
+  "pretraining-science": "Science",
+  "pretraining-books": "Books",
   "pretraining-multilingual": "Multilingual",
+  "posttraining-sft": "SFT",
+  "posttraining-agent": "Agent Traces",
+  "posttraining-preference": "Pref Opt",
+  "posttraining-tooluse": "Tool Calling",
+  "posttraining-safety": "Safety",
+  "posttraining-reasoning": "Reasoning",
   "evaluation": "Eval",
   "task-qa": "QA",
+  "task-summarization": "Summarize",
+  "task-translation": "Translate",
+  "task-classification": "Classify",
+  "multimodal": "Multimodal",
 };
 
 export default function DiscoverPage() {

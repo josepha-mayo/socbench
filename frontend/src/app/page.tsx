@@ -123,6 +123,7 @@ export default function LeaderboardPage() {
   const [evalHfId, setEvalHfId] = useState("");
   const [evalVisibility, setEvalVisibility] = useState("public");
   const [evalStatus, setEvalStatus] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     const categoryParam = category === "All" ? "" : categorySlug(category);
@@ -134,6 +135,16 @@ export default function LeaderboardPage() {
       })
       .catch(() => setLoading(false));
   }, [category, sortBy]);
+
+  const stats = (() => {
+    if (!datasets.length) return null;
+    const n = datasets.length;
+    const avgQ = Math.round(datasets.reduce((s, d) => s + (d.quality ?? 0), 0) / n);
+    const contaminated = datasets.filter(d => d.contaminated).length;
+    const highRep = datasets.filter(d => (d.repetition_pct ?? 0) > 20).length;
+    const topDs = [...datasets].sort((a, b) => (b.quality ?? 0) - (a.quality ?? 0))[0];
+    return { n, avgQ, contaminated, highRep, topDs };
+  })();
 
   function categorySlug(cat: string): string {
     const map: Record<string, string> = {
@@ -150,7 +161,9 @@ export default function LeaderboardPage() {
     return map[cat] || "";
   }
 
-  const filtered = category === "All" ? datasets : datasets.filter(ds => {
+  const filtered = datasets.filter(ds => {
+    if (search && !ds.hf_id.toLowerCase().includes(search.toLowerCase())) return false;
+    if (category === "All") return true;
     const cat = ds.category || "";
     if (category === "SFT") return cat.includes("sft");
     if (category === "Pretraining") return cat.includes("pretraining");
@@ -197,6 +210,27 @@ export default function LeaderboardPage() {
         </p>
       </div>
 
+      {stats && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          <div className="border border-arxiv-border rounded p-3 bg-arxiv-lightgray">
+            <div className="text-[10px] font-sans uppercase tracking-wide text-arxiv-gray">Datasets</div>
+            <div className="text-xl font-mono font-bold text-arxiv-dark">{stats.n}</div>
+          </div>
+          <div className="border border-arxiv-border rounded p-3 bg-arxiv-lightgray">
+            <div className="text-[10px] font-sans uppercase tracking-wide text-arxiv-gray">Avg Quality</div>
+            <div className="text-xl font-mono font-bold text-arxiv-dark">{stats.avgQ}<span className="text-xs text-arxiv-gray">/100</span></div>
+          </div>
+          <div className="border border-arxiv-border rounded p-3 bg-arxiv-lightgray">
+            <div className="text-[10px] font-sans uppercase tracking-wide text-arxiv-gray">Contaminated</div>
+            <div className={`text-xl font-mono font-bold ${stats.contaminated > 0 ? "text-red-700" : "text-green-700"}`}>{stats.contaminated}</div>
+          </div>
+          <div className="border border-arxiv-border rounded p-3 bg-arxiv-lightgray">
+            <div className="text-[10px] font-sans uppercase tracking-wide text-arxiv-gray">High Repetition (&gt;20%)</div>
+            <div className={`text-xl font-mono font-bold ${stats.highRep > 5 ? "text-red-700" : stats.highRep > 0 ? "text-yellow-700" : "text-green-700"}`}>{stats.highRep}</div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <div className="flex flex-wrap gap-1.5">
           {CATEGORIES.map((cat) => (
@@ -210,9 +244,16 @@ export default function LeaderboardPage() {
           ))}
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs font-sans text-arxiv-gray">Sort by:</span>
+          <input
+            type="text"
+            placeholder="Search datasets..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="text-xs font-sans border border-arxiv-border rounded px-3 py-1.5 bg-white w-40 focus:outline-none focus:border-arxiv-red"
+          />
+          <span className="text-xs font-sans text-arxiv-gray">Sort:</span>
           <select
-            className="text-xs font-sans border border-arxiv-border rounded px-2 py-1 bg-white"
+            className="text-xs font-sans border border-arxiv-border rounded px-2 py-1.5 bg-white"
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
           >
@@ -254,12 +295,23 @@ export default function LeaderboardPage() {
                 <tr key={ds.hf_id}>
                   <td className="font-mono text-arxiv-gray text-xs">{i + 1}</td>
                   <td>
-                    <a
-                      href={`/datasets/${encodeURIComponent(ds.hf_id)}`}
-                      className="font-sans text-sm font-medium block hover:text-arxiv-red"
-                    >
-                      {ds.hf_id}
-                    </a>
+                    <div className="flex items-center gap-1.5">
+                      <a
+                        href={`/datasets/${encodeURIComponent(ds.hf_id)}`}
+                        className="font-sans text-sm font-medium hover:text-arxiv-red no-underline"
+                      >
+                        {ds.hf_id}
+                      </a>
+                      <a
+                        href={`https://huggingface.co/datasets/${ds.hf_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] text-arxiv-link hover:text-arxiv-hover no-underline"
+                        title="View on HuggingFace"
+                      >
+                        HF↗
+                      </a>
+                    </div>
                     <div className="flex gap-1 mt-0.5">
                       {ds.tags.slice(0, 3).map((t) => (
                         <span key={t} className="text-[9px] font-sans bg-arxiv-lightgray border border-arxiv-border px-1 rounded text-arxiv-gray">

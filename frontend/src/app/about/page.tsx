@@ -18,6 +18,7 @@ export default function AboutPage() {
         <h3 className="text-lg font-serif font-bold pt-2">Multi-Dimension Scoring</h3>
         <p className="text-arxiv-gray">
           Not one composite number. Separate dimensions for separate questions.
+          All scores are on a 0-100 scale.
         </p>
         <div className="grid grid-cols-2 gap-3 mt-2">
           {[
@@ -27,6 +28,8 @@ export default function AboutPage() {
             ["Documentation", "Dataset card completeness, license clarity"],
             ["Popularity", "Downloads, likes, community adoption"],
             ["Freshness", "How recently updated, actively maintained"],
+            ["Contamination", "13-gram overlap with eval benchmarks (GSM8K, MMLU, HumanEval, MBPP)"],
+            ["Repetition", "Exact-row duplication rate — catches slop and synthetic padding"],
           ].map(([label, desc]) => (
             <div key={label} className="border border-arxiv-border rounded p-3">
               <strong className="font-sans">{label}</strong>
@@ -38,9 +41,27 @@ export default function AboutPage() {
         <h3 className="text-lg font-serif font-bold pt-4">Hierarchical Classification</h3>
         <p className="text-arxiv-gray">
           Datasets aren't one thing. A Ferrari isn't "better" than a truck — they're built
-          for different jobs. Code datasets get parseability and language diversity.
-          Instruction datasets get reasoning depth and refusal balance.
-          Agent datasets get trajectory completeness and loop detection.
+          for different jobs. Categories include: Pretraining (web, code, math, science, books),
+          SFT (instruction, assistant), Preference Optimization (DPO, RLHF), Tool Calling,
+          Agent Traces, Reasoning, Task (QA, summarization, translation), Multimodal, and Safety.
+          Each category has its own metrics — code datasets get parseability, agent datasets
+          get trajectory completeness and loop detection, tool-calling datasets get format consistency.
+        </p>
+
+        <h3 className="text-lg font-serif font-bold pt-4">Contamination & Repetition</h3>
+        <p className="text-arxiv-gray">
+          Every dataset is checked for benchmark contamination using 13-gram overlap against
+          GSM8K, MMLU, HumanEval, MBPP, and more. Datasets with &gt;1% overlap are flagged
+          as contaminated. Repetition % measures exact-row duplication — a key signal for
+          detecting synthetic slop and padded datasets. truthy-dpo at 99.9% repetition?
+          That's a warning. Ultra-FineWeb at 0.45%? That's clean.
+        </p>
+
+        <h3 className="text-lg font-serif font-bold pt-4">Request Evaluation</h3>
+        <p className="text-arxiv-gray">
+          Don't see a dataset you need? Use the "Request Evaluation" button on the leaderboard
+          to submit any HuggingFace dataset ID for scoring. Choose public (results published
+          on the leaderboard) or private (results shared with you only).
         </p>
 
         <h3 className="text-lg font-serif font-bold pt-4">Provenance Tracking</h3>

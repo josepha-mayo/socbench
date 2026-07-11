@@ -12,6 +12,7 @@ const config: Config = {
       colors: {
         arxiv: {
           red: "#b31b1b",
+          darkred: "#8a1414",
           dark: "#1a1a1a",
           gray: "#666666",
           lightgray: "#f5f5f5",
