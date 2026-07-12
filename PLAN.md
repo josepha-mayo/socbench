@@ -31,7 +31,6 @@ backend/
 │   ├── contamination/        # Stage 2: Eval benchmark overlap
 │   ├── discovery/            # HF dataset scanner + qualifier
 │   ├── training/             # Stage 3: GPT-2 124M training pipeline
-│   ├── kaggle/               # Multi-account orchestration
 │   ├── api/                  # FastAPI routes
 │   └── cli.py                # Typer CLI
 ├── pyproject.toml
@@ -44,10 +43,6 @@ frontend/
 │   └── about/page.tsx        # Methodology with research citations
 ├── tailwind.config.ts        # Arxiv-style: EB Garamond serif, red accents
 └── package.json
-kaggle_socbench/              # Separate repo — training infrastructure
-├── train_socbench.ipynb      # GPT-2 124M on 2x T4
-├── socbench_kaggle/          # Account manager, queue, notebook generator
-└── README.md
 ```
 
 ## Multi-Dimension Scoring
@@ -55,7 +50,7 @@ kaggle_socbench/              # Separate repo — training infrastructure
 Not one composite number. Separate dimensions for separate questions.
 
 | Dimension | What It Measures |
-|---|---|
+|---|---|---|
 | **Quality** | Gopher rules, FineWeb filters, DCLM criteria, dedup rate |
 | **Diversity** | Text uniqueness, token spread, domain distribution |
 | **Utility** | How actionable — format quality, schema conformance |
@@ -91,8 +86,8 @@ Dolma → OLMo (7B, 1B)
 
 ## Training Impact (Stage 3)
 
-For top-tier datasets only. GPT-2 124M from scratch on Kaggle 2x T4.
-1B tokens per dataset (~12 hours). Research proves 125M models predict
+For top-tier datasets only. GPT-2 124M from scratch.
+1B tokens per dataset. Research proves 125M models predict
 data quality scaling for 3B models (Ankner et al., 2024).
 
 ## Discovery Pipeline
@@ -122,7 +117,6 @@ socbench classify "databricks/databricks-dolly-15k"
 socbench provenance "bigcode/starcoderdata"
 socbench recommendations "teknium/OpenHermes-2.5"
 socbench leaderboard --top 20
-socbench notebook "bigcode/starcoderdata"
 socbench serve
 ```
 
@@ -130,6 +124,6 @@ socbench serve
 
 - Backend: Python 3.11+, FastAPI, SQLAlchemy+asyncpg, Pydantic, Typer
 - Scoring: datasketch, tiktoken, fasttext-langdetect, presidio-analyzer (opt-in)
-- Training: PyTorch, Kaggle 2x T4, NanoGPT architecture
+- Training: PyTorch, NanoGPT architecture
 - Frontend: Next.js 14, Tailwind CSS, EB Garamond (arxiv aesthetic)
 - Infra: PostgreSQL 16, Docker Compose
