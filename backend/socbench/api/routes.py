@@ -172,7 +172,7 @@ async def get_leaderboard(
     sort: str = Query("quality"),
 ):
     async with async_session_factory() as session:
-        valid_sorts = {"quality", "diversity", "utility", "documentation", "popularity", "freshness", "combined_score", "downloads"}
+        valid_sorts = {"quality", "diversity", "utility", "documentation", "popularity", "freshness", "combined_score", "downloads", "training_score"}
         sort_col = getattr(LeaderboardRow, sort if sort in valid_sorts else "quality")
         stmt = select(LeaderboardRow)
         if category:
@@ -211,11 +211,59 @@ async def get_leaderboard(
                     "contaminated": cont > 0.01,
                     "repetition_pct": entry.repetition_pct,
                     "combined_score": s100(entry.combined_score),
+                    "training_score": s100(entry.training_score),
                     "downloads": ds.downloads,
                     "likes": ds.likes,
                     "created_at": ds.created_at,
                 })
         return leaderboard
+
+
+@router.get("/training-leaderboard")
+async def get_training_leaderboard(
+    limit: int = Query(100, ge=1, le=500),
+):
+    """Dedicated training-impact leaderboard — only datasets with training scores.
+    Ranked by training_score (1 = best). Includes loss curves and perplexity."""
+    async with async_session_factory() as session:
+        stmt = (
+            select(LeaderboardRow, DatasetRow, TrainingRunRow)
+            .join(DatasetRow, LeaderboardRow.dataset_id == DatasetRow.id)
+            .outerjoin(TrainingRunRow, TrainingRunRow.dataset_id == DatasetRow.id)
+            .where(LeaderboardRow.training_score.isnot(None))
+            .order_by(LeaderboardRow.training_score.desc())
+            .limit(limit)
+        )
+        result = await session.execute(stmt)
+        rows = result.all()
+
+        def s100(val):
+            if val is None:
+                return None
+            return round(val * 100, 1)
+
+        entries = []
+        for i, (lb, ds, tr) in enumerate(rows, start=1):
+            entry = {
+                "training_rank": i,
+                "hf_id": ds.hf_id,
+                "name": ds.name,
+                "category": lb.category,
+                "training_score": s100(lb.training_score),
+                "combined_score": s100(lb.combined_score),
+                "quality": s100(lb.quality),
+                "final_val_loss": round(tr.final_val_loss, 4) if tr and tr.final_val_loss else None,
+                "perplexity": round(2.71828 ** tr.final_val_loss, 2) if tr and tr.final_val_loss else None,
+                "tokens_seen": tr.tokens_seen if tr else None,
+                "convergence_steps": tr.convergence_steps if tr else None,
+                "loss_curve": tr.loss_curve if tr else None,
+                "model_config": tr.model_config if tr else None,
+                "downloads": ds.downloads,
+                "likes": ds.likes,
+                "created_at": ds.created_at,
+            }
+            entries.append(entry)
+        return entries
 
 
 @router.get("/discover")
@@ -261,7 +309,117 @@ async def get_stats():
     async with async_session_factory() as session:
         ds_count = (await session.execute(select(func.count(DatasetRow.id)))).scalar() or 0
         score_count = (await session.execute(select(func.count(ScoreRow.id)))).scalar() or 0
-        return {"total_datasets": ds_count, "total_scores": score_count}
+        train_count = (await session.execute(select(func.count(TrainingRunRow.id)))).scalar() or 0
+        lb_count = (await session.execute(select(func.count(LeaderboardRow.id)))).scalar() or 0
+        return {
+            "total_datasets": ds_count,
+            "total_scores": score_count,
+            "total_training_runs": train_count,
+            "total_leaderboard_entries": lb_count,
+        }
+
+
+@router.get("/evals")
+async def get_evals(category: Optional[str] = Query(None)):
+    """Get eval benchmark analysis — contamination & saturation for top 20 evals."""
+    from socbench.evals.analysis import analyze_evals, get_eval_summary
+    results = await analyze_evals()
+    if category:
+        results = [r for r in results if r.category == category]
+    summary = get_eval_summary()
+    return {
+        "summary": summary,
+        "evals": [
+            {
+                "key": r.key,
+                "name": r.name,
+                "category": r.category,
+                "open_source": r.open_source,
+                "hf_id": r.hf_id,
+                "description": r.description,
+                "paper": r.paper,
+                "num_examples": r.num_examples,
+                "sota_pass_rate": r.sota_pass_rate,
+                "ceiling": r.ceiling,
+                "saturation_index": r.saturation_index,
+                "contamination_risk": r.contamination_risk,
+                "discriminative_power": r.discriminative_power,
+                "annotation_quality": r.annotation_quality,
+                "coverage_breadth": r.coverage_breadth,
+                "effective_quality": r.effective_quality,
+                "headroom": r.headroom,
+                "status": r.status,
+                "data_publicly_available": r.data_publicly_available,
+                "deprecated": r.deprecated,
+                "successor": r.successor,
+                "year": r.year,
+                "actively_maintained": r.actively_maintained,
+                "contamination_incidents": r.contamination_incidents,
+                "overlap_with_training": r.overlap_with_training,
+                "overlap_benchmarks": r.overlap_benchmarks,
+            }
+            for r in results
+        ],
+    }
+
+
+@router.get("/trending")
+async def get_trending(
+    limit: int = Query(30, ge=1, le=200),
+    days: Optional[int] = Query(7),
+):
+    """Fetch real trending datasets from HuggingFace — dynamic, not hardcoded."""
+    from socbench.discovery.scanner import scan_datasets
+    from socbench.categories import classify_dataset, CATEGORIES
+
+    datasets = await scan_datasets(
+        sort="trendingScore",
+        limit=limit,
+        days=days,
+    )
+
+    results = []
+    for ds in datasets:
+        cat_key = classify_dataset(ds.tags, dataset_id=ds.hf_id)
+        is_qualified = not (ds.private or ds.gated) and ds.downloads >= 1000 and ds.likes >= 10
+        results.append({
+            "hf_id": ds.hf_id,
+            "name": ds.name,
+            "tags": ds.tags,
+            "downloads": ds.downloads,
+            "likes": ds.likes,
+            "trending_score": ds.trending_score,
+            "languages": ds.languages,
+            "created_at": ds.created_at,
+            "last_modified": ds.last_modified,
+            "category": cat_key,
+            "category_label": CATEGORIES[cat_key].label if cat_key in CATEGORIES else cat_key,
+            "qualified": is_qualified,
+        })
+    return results
+
+
+@router.get("/categories")
+async def get_categories():
+    """Return the full hierarchical category tree for frontend use."""
+    from socbench.categories import CATEGORIES
+    tree = {}
+    for key, cat in CATEGORIES.items():
+        node = {
+            "key": cat.key,
+            "label": cat.label,
+            "description": cat.description,
+            "parent": cat.parent,
+            "metrics": cat.metrics,
+            "children": [],
+        }
+        tree[key] = node
+    # Build parent->children mapping
+    for key, node in tree.items():
+        parent = node["parent"]
+        if parent and parent in tree:
+            tree[parent]["children"].append(key)
+    return tree
 
 
 # ---------------------------------------------------------------------------
@@ -271,21 +429,39 @@ async def get_stats():
 class EvalRequest(BaseModel):
     hf_id: str
     visibility: str = "public"  # "public" or "private"
-    requester: str = ""
+    requester_email: str = ""
+    requester_name: str = ""
     notes: str = ""
 
 
 @router.post("/request-evaluation")
 async def request_evaluation(req: EvalRequest):
-    """Submit a dataset evaluation request (public or private)."""
+    """Submit a dataset evaluation request (public or private).
+    Persists to database. Email is handled client-side via mailto: link."""
     if req.visibility not in ("public", "private"):
         raise HTTPException(status_code=400, detail="visibility must be 'public' or 'private'")
-    # In a full deployment this would persist to a queue table and notify.
-    # For now we return an acknowledgement so the frontend can confirm.
+
+    from socbench.models import EvalRequestRow
+
+    async with async_session_factory() as session:
+        row = EvalRequestRow(
+            hf_id=req.hf_id,
+            visibility=req.visibility,
+            requester_email=req.requester_email or None,
+            requester_name=req.requester_name or None,
+            notes=req.notes or None,
+            status="pending",
+        )
+        session.add(row)
+        await session.commit()
+        await session.refresh(row)
+        request_id = row.id
+
     return {
         "status": "received",
+        "request_id": request_id,
         "hf_id": req.hf_id,
         "visibility": req.visibility,
         "message": f"Evaluation request for {req.hf_id} ({req.visibility}) received. "
-        f"You will be notified when results are available.",
+        f"Request ID: {request_id}. Saved to queue.",
     }
