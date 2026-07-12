@@ -1,0 +1,21 @@
+Restructure training as subpage, fix charts, simplify request-eval
+
+- Move Training Impact to a subpage tab on the main leaderboard page
+  (showcased as a higher-level evaluation), remove the separate /training route
+- Training leaderboard now returns a flat list: trained datasets ranked by
+  training_score, plus top 10 HF trending and top 10 most-downloaded datasets
+  marked as "pending training" (queued to be trained next)
+- Remove training_score column/sort from the main leaderboard table
+- Remove the /discover page and nav link (keep /trending which mirrors HF's
+  exact trending list)
+- Delete the dynamic-benchmarking submissions system (SubmissionRow model,
+  /api/submissions, /api/admin/submissions*, /submissions and /admin pages)
+- Restore /api/request-evaluation as the single popup flow: persists the
+  request and opens a mailto: to the maintainer
+- Fix recharts usage in evals page (remove invalid ZAxis and Scatter
+  xDataKey/yDataKey props)
+- Keep the non-HF benchmarks added to the evals registry
+
+Generated with [Devin](https://devin.ai)
+
+Co-Authored-By: Devin <158243242+devin-ai-integration[bot]@users.noreply.github.com>

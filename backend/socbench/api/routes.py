@@ -223,8 +223,24 @@ async def get_leaderboard(
 async def get_training_leaderboard(
     limit: int = Query(100, ge=1, le=500),
 ):
-    """Dedicated training-impact leaderboard — only datasets with training scores.
-    Ranked by training_score (1 = best). Includes loss curves and perplexity."""
+    """Training-impact leaderboard — a higher-level evaluation.
+
+    Returns a single flat list:
+      - Trained datasets (GPT-2 124M runs) ranked by training_score
+      - Top 10 trending HF datasets (marked "pending")
+      - Top 10 most downloaded HF datasets (marked "pending")
+    """
+    from socbench.discovery.scanner import scan_datasets
+    from socbench.categories import classify_dataset, CATEGORIES
+
+    def s100(val):
+        if val is None:
+            return None
+        return round(val * 100, 1)
+
+    entries: list[dict] = []
+    seen: set[str] = set()
+
     async with async_session_factory() as session:
         stmt = (
             select(LeaderboardRow, DatasetRow, TrainingRunRow)
@@ -237,14 +253,8 @@ async def get_training_leaderboard(
         result = await session.execute(stmt)
         rows = result.all()
 
-        def s100(val):
-            if val is None:
-                return None
-            return round(val * 100, 1)
-
-        entries = []
         for i, (lb, ds, tr) in enumerate(rows, start=1):
-            entry = {
+            entries.append({
                 "training_rank": i,
                 "hf_id": ds.hf_id,
                 "name": ds.name,
@@ -261,9 +271,54 @@ async def get_training_leaderboard(
                 "downloads": ds.downloads,
                 "likes": ds.likes,
                 "created_at": ds.created_at,
-            }
-            entries.append(entry)
-        return entries
+                "status": "trained",
+                "source": "trained",
+            })
+            seen.add(ds.hf_id)
+
+    # Pull the EXACT HF trending list and most-downloaded list, mark as pending training.
+    try:
+        trending_raw = await scan_datasets(sort="trendingScore", limit=10, days=None)
+    except Exception:
+        trending_raw = []
+
+    try:
+        most_used_raw = await scan_datasets(sort="downloads", limit=10, days=None)
+    except Exception:
+        most_used_raw = []
+
+    def _add_pending(rows, source):
+        for ds in rows:
+            if ds.hf_id in seen:
+                continue
+            cat_key = classify_dataset(ds.tags, dataset_id=ds.hf_id)
+            entries.append({
+                "training_rank": None,
+                "hf_id": ds.hf_id,
+                "name": ds.name,
+                "category": cat_key,
+                "category_label": CATEGORIES[cat_key].label if cat_key in CATEGORIES else cat_key,
+                "training_score": None,
+                "combined_score": None,
+                "quality": None,
+                "final_val_loss": None,
+                "perplexity": None,
+                "tokens_seen": None,
+                "convergence_steps": None,
+                "loss_curve": None,
+                "model_config": None,
+                "downloads": ds.downloads,
+                "likes": ds.likes,
+                "created_at": ds.created_at,
+                "status": "pending",
+                "source": source,
+            })
+            seen.add(ds.hf_id)
+
+    _add_pending(trending_raw, "trending")
+    _add_pending(most_used_raw, "most_used")
+
+    return entries
 
 
 @router.get("/discover")

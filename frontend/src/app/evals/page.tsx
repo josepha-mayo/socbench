@@ -1,6 +1,20 @@
 "use client";
 
 import { useState, useEffect, Fragment } from "react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+  ScatterChart,
+  Scatter,
+  ReferenceLine,
+  Label,
+} from "recharts";
 
 interface EvalEntry {
   key: string;
@@ -335,66 +349,111 @@ export default function EvalsPage() {
           </table>
         </div>
       ) : viewMode === "Chart" ? (
-        /* Chart view: horizontal bar chart of effective quality */
         <div className="border border-arxiv-border rounded p-4 bg-white">
           <h3 className="text-sm font-serif font-bold mb-4">Effective Quality by Benchmark (higher = better)</h3>
-          <div className="space-y-2">
-            {filtered.map((e, i) => (
-              <div key={e.key} className="flex items-center gap-3">
-                <div className="w-40 text-xs font-sans font-medium text-right truncate" title={e.name}>{i + 1}. {e.name}</div>
-                <div className="flex-1 h-6 bg-arxiv-lightgray rounded-full overflow-hidden relative">
-                  <div
-                    className={`h-full rounded-full ${e.effective_quality >= 70 ? "bg-green-500" : e.effective_quality >= 40 ? "bg-yellow-500" : "bg-red-500"}`}
-                    style={{ width: `${e.effective_quality}%` }}
-                  />
-                  <span className="absolute inset-0 flex items-center justify-end pr-2 text-[10px] font-mono font-bold text-arxiv-dark">
-                    {Math.round(e.effective_quality)}
-                  </span>
-                </div>
-                <div className={`w-20 text-[10px] font-sans px-2 py-0.5 rounded-full border text-center ${STATUS_COLORS[e.status] || ""}`}>
-                  {e.status}
-                </div>
-              </div>
-            ))}
+          <div className="h-[500px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={[...filtered].sort((a, b) => a.effective_quality - b.effective_quality)}
+                layout="vertical"
+                margin={{ top: 5, right: 60, left: 140, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e5e7eb" />
+                <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10, fill: "#6b7280" }} />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={130}
+                  tick={{ fontSize: 10, fill: "#374151" }}
+                />
+                <Tooltip
+                  contentStyle={{ fontSize: 12, borderRadius: 6 }}
+                  formatter={(value: any, name: any, props: any) => [
+                    `${Math.round(value)} — ${props.payload.status}`,
+                    "Effective Quality",
+                  ]}
+                />
+                <Bar dataKey="effective_quality" radius={[0, 4, 4, 0]}>
+                  {filtered.map((e, i) => {
+                    const color =
+                      e.status === "fresh"
+                        ? "#22c55e"
+                        : e.status === "maturing"
+                        ? "#eab308"
+                        : e.status === "saturated"
+                        ? "#f97316"
+                        : e.status === "contaminated"
+                        ? "#ef4444"
+                        : "#9ca3af";
+                    return <Cell key={i} fill={color} />;
+                  })}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="flex gap-4 mt-4 text-[10px] font-sans">
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500" /> fresh</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-500" /> maturing</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500" /> saturated</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" /> contaminated</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-400" /> deprecated</span>
           </div>
         </div>
       ) : (
-        /* Graph view: scatter plot of saturation vs contamination risk */
         <div className="border border-arxiv-border rounded p-4 bg-white">
           <h3 className="text-sm font-serif font-bold mb-4">Saturation vs Contamination Risk (bottom-left = best)</h3>
-          <div className="relative w-full" style={{ height: "500px" }}>
-            {/* Axes */}
-            <div className="absolute bottom-8 left-32 right-4 h-px bg-arxiv-border" />
-            <div className="absolute bottom-8 left-32 top-4 w-px bg-arxiv-border" />
-            {/* Axis labels */}
-            <div className="absolute bottom-0 left-32 right-4 text-center text-[10px] font-sans text-arxiv-gray">Saturation Index (%) →</div>
-            <div className="absolute top-4 bottom-8 left-0 w-32 flex items-center justify-center text-[10px] font-sans text-arxiv-gray" style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}>Contamination Risk (%) →</div>
-            {/* Grid lines */}
-            {[25, 50, 75, 100].map((v) => (
-              <div key={`h${v}`} className="absolute bottom-8 left-32 right-4 border-t border-dashed border-arxiv-border/50" style={{ bottom: `${8 + v * 0.84}%` }} />
-            ))}
-            {[25, 50, 75, 100].map((v) => (
-              <div key={`v${v}`} className="absolute bottom-8 top-4 border-l border-dashed border-arxiv-border/50" style={{ left: `${32 + v * 0.85}%` }} />
-            ))}
-            {/* Points */}
-            {filtered.map((e) => {
-              const left = `${32 + e.saturation_index * 0.85}%`;
-              const bottom = `${8 + e.contamination_risk * 0.84}%`;
-              const color = e.status === "fresh" ? "bg-green-500" : e.status === "maturing" ? "bg-yellow-500" : e.status === "saturated" ? "bg-orange-500" : e.status === "contaminated" ? "bg-red-500" : "bg-gray-400";
-              return (
-                <div
-                  key={e.key}
-                  className="absolute w-3 h-3 rounded-full cursor-pointer hover:scale-150 transition-transform"
-                  style={{ left, bottom, transform: "translate(-50%, 50%)" }}
-                  title={`${e.name}: sat=${e.saturation_index}% cont=${e.contamination_risk}% status=${e.status}`}
+          <div className="h-[500px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <ScatterChart margin={{ top: 20, right: 20, bottom: 40, left: 40 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis
+                  type="number"
+                  dataKey="saturation_index"
+                  name="Saturation"
+                  domain={[0, 100]}
+                  tick={{ fontSize: 10, fill: "#6b7280" }}
                 >
-                  <div className={`w-3 h-3 rounded-full ${color}`} />
-                  <div className="absolute top-4 left-4 whitespace-nowrap text-[9px] font-sans text-arxiv-dark bg-white/80 px-1 rounded">
-                    {e.name}
-                  </div>
-                </div>
-              );
-            })}
+                  <Label value="Saturation Index (%)" offset={-25} position="insideBottom" style={{ fontSize: 12, fill: "#6b7280" }} />
+                </XAxis>
+                <YAxis
+                  type="number"
+                  dataKey="contamination_risk"
+                  name="Contamination"
+                  domain={[0, 100]}
+                  tick={{ fontSize: 10, fill: "#6b7280" }}
+                >
+                  <Label value="Contamination Risk (%)" angle={-90} position="insideLeft" style={{ fontSize: 12, fill: "#6b7280" }} />
+                </YAxis>
+                <Tooltip
+                  cursor={{ strokeDasharray: "3 3" }}
+                  contentStyle={{ fontSize: 12, borderRadius: 6 }}
+                  formatter={(value: any, name: any, props: any) => {
+                    const p = props.payload;
+                    return [
+                      `${p.name}\nSaturation: ${Math.round(p.saturation_index)}%\nContamination: ${Math.round(p.contamination_risk)}%\nStatus: ${p.status}`,
+                      p.name,
+                    ];
+                  }}
+                />
+                <ReferenceLine x={50} stroke="#9ca3af" strokeDasharray="3 3" />
+                <ReferenceLine y={50} stroke="#9ca3af" strokeDasharray="3 3" />
+                <Scatter data={filtered}>
+                  {filtered.map((e, i) => {
+                    const color =
+                      e.status === "fresh"
+                        ? "#22c55e"
+                        : e.status === "maturing"
+                        ? "#eab308"
+                        : e.status === "saturated"
+                        ? "#f97316"
+                        : e.status === "contaminated"
+                        ? "#ef4444"
+                        : "#9ca3af";
+                    return <Cell key={i} fill={color} />;
+                  })}
+                </Scatter>
+              </ScatterChart>
+            </ResponsiveContainer>
           </div>
           <div className="flex gap-4 mt-4 text-[10px] font-sans">
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500" /> fresh</span>

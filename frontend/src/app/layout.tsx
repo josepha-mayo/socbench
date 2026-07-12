@@ -32,9 +32,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <a href="/trending" className="text-arxiv-gray hover:text-arxiv-red no-underline transition-colors">
                   Trending
                 </a>
-                <a href="/discover" className="text-arxiv-gray hover:text-arxiv-red no-underline transition-colors">
-                  Discover
-                </a>
                 <a href="/about" className="text-arxiv-gray hover:text-arxiv-red no-underline transition-colors">
                   About
                 </a>
