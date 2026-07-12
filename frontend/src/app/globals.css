@@ -17,13 +17,16 @@ a {
   @apply w-full text-sm border-collapse;
 }
 .arxiv-table th {
-  @apply text-left font-sans font-semibold text-arxiv-gray border-b-2 border-arxiv-border py-2 px-3;
+  @apply text-left font-sans font-semibold text-arxiv-gray border-b-2 border-arxiv-border py-2 px-3 bg-white;
 }
 .arxiv-table td {
   @apply border-b border-arxiv-border py-2 px-3;
 }
 .arxiv-table tr:hover {
   @apply bg-arxiv-lightgray;
+}
+.arxiv-table tr:nth-child(even) {
+  @apply bg-arxiv-lightgray/30;
 }
 
 /* Score badges */
@@ -45,4 +48,30 @@ a {
 }
 .category-tab.active {
   @apply bg-arxiv-red text-white border-arxiv-red;
+}
+
+/* Stat cards */
+.stat-card {
+  @apply border border-arxiv-border rounded p-3 bg-arxiv-lightgray transition-shadow;
+}
+.stat-card:hover {
+  @apply shadow-md;
+}
+
+/* Section headers */
+.section-header {
+  @apply text-lg font-serif font-bold text-arxiv-dark border-b border-arxiv-border pb-1 mb-3;
+}
+
+/* Info banner */
+.info-banner {
+  @apply p-4 border border-arxiv-border rounded bg-arxiv-lightgray text-xs font-sans text-arxiv-gray;
+}
+
+/* Expandable row */
+.expandable-row {
+  @apply cursor-pointer transition-colors;
+}
+.expandable-row:hover {
+  @apply bg-arxiv-lightgray;
 }

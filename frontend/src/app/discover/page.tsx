@@ -112,14 +112,14 @@ export default function DiscoverPage() {
                   <td>
                     <a href={`/datasets/${encodeURIComponent(ds.hf_id)}`} className="font-sans font-medium text-sm">{ds.hf_id}</a>
                     <div className="flex gap-1 mt-1">
-                      {ds.tags.slice(0, 3).map((t) => (
+                      {(ds.tags || []).slice(0, 3).map((t) => (
                         <span key={t} className="text-[9px] font-sans bg-arxiv-lightgray border border-arxiv-border px-1 rounded">{t}</span>
                       ))}
                     </div>
                   </td>
-                  <td className="text-right font-mono text-xs">{ds.downloads.toLocaleString()}</td>
-                  <td className="text-right font-mono text-xs">{ds.likes}</td>
-                  <td className="text-right font-mono text-xs">{ds.trending_score.toFixed(1)}</td>
+                  <td className="text-right font-mono text-xs">{ds.downloads != null ? ds.downloads.toLocaleString() : "—"}</td>
+                  <td className="text-right font-mono text-xs">{ds.likes != null ? ds.likes : "—"}</td>
+                  <td className="text-right font-mono text-xs">{ds.trending_score != null ? ds.trending_score.toFixed(1) : "—"}</td>
                   <td><span className="text-xs font-sans bg-arxiv-red/10 text-arxiv-red px-2 py-0.5 rounded-full">{ds.category_label}</span></td>
                   <td>{ds.qualified ? <span className="score-high">QUALIFIED</span> : <span className="score-low">REJECTED</span>}</td>
                 </tr>
