@@ -284,29 +284,6 @@ def leaderboard(
 
 
 @app.command()
-def notebook(
-    dataset_id: str = typer.Argument(..., help="HuggingFace dataset ID"),
-    output_dir: str = typer.Option("./kaggle_output", help="Output directory"),
-):
-    """Generate a Kaggle training notebook for a dataset."""
-    from socbench.kaggle.notebook import save_notebook
-
-    result = save_notebook(output_dir, dataset_id)
-    console.print(f"[green]Notebook saved:[/green] {result['path']}")
-    console.print(f"Kernel slug: {result['slug']}")
-
-
-@app.command()
-def queue_stats():
-    """Show training job queue statistics."""
-    from socbench.kaggle.queue import JobQueue
-
-    q = JobQueue()
-    stats = q.get_stats()
-    console.print(f"Queue: {json.dumps(stats, indent=2)}")
-
-
-@app.command()
 def serve(
     host: str = typer.Option("0.0.0.0", help="API host"),
     port: int = typer.Option(8000, help="API port"),

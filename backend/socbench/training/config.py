@@ -70,24 +70,6 @@ class TrainConfig:
     ddp: bool = True  # DistributedDataParallel
 
 
-@dataclass(frozen=True)
-class KaggleConfig:
-    """Kaggle notebook environment config."""
-
-    gpu_count: int = 2
-    gpu_type: str = "T4"
-    max_runtime_hours: int = 12
-    output_dir: str = "/kaggle/working"
-    input_dir: str = "/kaggle/input"
-    temp_dir: str = "/kaggle/temp"
-    hf_cache: str = "/kaggle/working/hf_cache"
-
-    # Environment
-    disable_xet: bool = True  # HF Xet transfer issues on Kaggle
-    fp16: bool = True  # T4 only supports FP16, not BF16
-
-
 # Default configs
 MODEL = ModelConfig()
 TRAIN = TrainConfig()
-KAGGLE = KaggleConfig()
