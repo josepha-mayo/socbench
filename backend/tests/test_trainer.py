@@ -45,6 +45,7 @@ def test_generate_train_script_contains_required_markers(trainer_script):
     assert "SOCBENCH_GRADIENT_ACCUMULATION_STEPS" in trainer_script
     assert "SOCBENCH_TRAIN_COMPILE" in trainer_script
     assert "Set SOCBENCH_ALLOW_CPU_FALLBACK=1 only for explicit smoke/debug runs" in trainer_script
+    assert "with torch.inference_mode():" in trainer_script
     assert "{str(TRAIN.compile)}" not in trainer_script
 
 

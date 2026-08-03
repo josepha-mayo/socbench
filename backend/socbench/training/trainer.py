@@ -387,8 +387,11 @@ while iter_num < max_iters:
         model.eval()
         for k in range(eval_iters):
             X_eval, Y_eval = get_batch("val")
-            with ctx:
-                _, loss = model(X_eval, Y_eval)
+            # Validation must not retain autograd activations. At GPT-2 124M /
+            # 1024 tokens, doing so exhausts a Kaggle T4 despite a safe train batch.
+            with torch.inference_mode():
+                with ctx:
+                    _, loss = model(X_eval, Y_eval)
             losses[k] = loss.item()
         model.train()
         val_loss = losses.mean().item()
