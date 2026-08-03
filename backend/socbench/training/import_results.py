@@ -16,6 +16,8 @@ DEFAULT_PATTERNS = (
     "kaggle_socbench/results/*/loss_curve.json",
     "kaggle_socbench/results_v12/*.json",
     "backend/kaggle_training_outputs/**/*.log",
+    "backend/kaggle_training_outputs/**/socbench_result.json",
+    "backend/kaggle_training_outputs/**/loss_curve.json",
 )
 
 
@@ -165,6 +167,8 @@ def load_training_artifact(path: Path, root: Path) -> tuple[TrainingArtifact | N
             data = json.loads(text)
         except json.JSONDecodeError as exc:
             return None, f"unreadable JSON: {exc}"
+        if "loss_curve.json" in data or "eval_results.json" in data:
+            data = _normalize_marker_summary(data)
 
     dataset_id = data.get("dataset_id")
     if not isinstance(dataset_id, str) or not dataset_id.strip():

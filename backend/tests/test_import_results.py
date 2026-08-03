@@ -141,6 +141,43 @@ def test_load_training_artifact_accepts_kaggle_log_marker(tmp_path):
     assert artifact.final_val_loss == 4.2
 
 
+def test_build_plan_accepts_kaggle_result_summary(tmp_path):
+    root = tmp_path
+    db = tmp_path / "socbench.db"
+    _make_db(db)
+    path = root / "backend" / "kaggle_training_outputs" / "dataset-a" / "socbench_result.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        json.dumps(
+            {
+                "dataset_id": "dataset/a",
+                "tokens_budget": 123456,
+                "loss_curve.json": {
+                    "n_tokens": 123456,
+                    "max_iters": 10,
+                    "best_val_loss": 4.0,
+                    "final_val_loss": 4.2,
+                    "loss_curve": [
+                        {"step": 0, "train_loss": None, "val_loss": 5.0},
+                        {"step": 9, "train_loss": None, "val_loss": 4.2},
+                    ],
+                },
+                "eval_results.json": {
+                    "best_val_loss": 4.0,
+                    "final_val_loss": 4.2,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    plan = build_import_plan(root, db)
+
+    assert set(plan.selected) == {"dataset/a"}
+    assert plan.selected["dataset/a"].path.endswith("socbench_result.json")
+    assert plan.selected["dataset/a"].n_tokens == 123456
+
+
 def test_load_training_artifact_accepts_single_step_comparable_curve(tmp_path):
     root = tmp_path
     path = root / "backend" / "kaggle_training_outputs" / "dataset-a" / "loss_curve.json"
