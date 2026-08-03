@@ -63,7 +63,6 @@ backend/
     contamination/    N-gram contamination checker
     discovery/        Hugging Face scanner and qualifier
     evals/            Eval benchmark intelligence
-    kaggle/           Kaggle account, notebook, and queue helpers
     scoring/          Automated dataset scorers
     training/         GPT-2 training config, script generator, importer
   tests/              Backend unit tests
@@ -265,107 +264,23 @@ and preserves the combined score formula:
 combined_score = 0.9 * auto_score + 0.1 * training_score
 ```
 
-## Kaggle Training Workflow
+## External Training Result Recovery
 
-Socbench has a safe offline bundle step for new Kaggle runs. The bundle step does
-not push anything; it creates reviewable files for the prepared Kaggle dataset and
-training kernel.
+Socbench publishes only validated training results and their proof exports. GPU
+accounts, kernel configuration, generated training files, and run logs are
+local operational concerns and are excluded from the product repository.
 
-List configured Kaggle profiles without printing credentials:
+Import the compact result artifacts and regenerate public evidence with:
 
 ```powershell
 cd C:\Users\USER\.vscode\vibe\backend
-python -m socbench kaggle accounts
+python -m socbench.training.import_results --include-orphans --create-missing-datasets --apply
+python -m socbench export-proofs --output-dir ..\eval-proof
 ```
 
-The `josephayanda` Kaggle profile is intentionally disabled and must not be used
-for Socbench launches.
-
-Prepare a dataset binary first:
-
-```powershell
-python -c "import asyncio; from socbench.training.data_prep import prepare_dataset_binary; asyncio.run(prepare_dataset_binary('Salesforce/wikitext', 'kaggle_prepared/salesforce-wikitext', max_samples=100000))"
-```
-
-Create the local Kaggle bundle for a real GPU run:
-
-```powershell
-python -m socbench kaggle bundle Salesforce/wikitext kaggle_prepared/salesforce-wikitext --output-root kaggle_train --account holykeys --tokens 1000000000 --train-device cuda --accelerator NvidiaTeslaT4 --train-batch-size 8 --gradient-accumulation-steps 64
-```
-
-The command prints exact push commands like:
-
-```powershell
-$env:KAGGLE_CONFIG_DIR = "C:\Users\USER\.vscode\model_ablation\.kaggle_profiles\holykeys\.kaggle"
-kaggle datasets create -p "kaggle_train\salesforce-wikitext\data" --dir-mode zip
-kaggle kernels push -p "kaggle_train\salesforce-wikitext\kernel" --accelerator NvidiaTeslaT4
-```
-
-If the Kaggle dataset already exists, use `kaggle datasets version` instead of
-`kaggle datasets create`.
-
-To upload/version the prepared Kaggle dataset and push the GPU kernel in one
-step, use:
-
-```powershell
-python -m socbench kaggle launch Salesforce/wikitext kaggle_prepared/salesforce-wikitext --output-root kaggle_train --account holykeys --tokens 1000000000 --train-device cuda --accelerator NvidiaTeslaT4 --train-batch-size 8 --gradient-accumulation-steps 64
-```
-
-`launch` reuses the saved Kaggle OAuth profile from
-`C:\Users\USER\.vscode\model_ablation\.kaggle_profiles\<account>\.kaggle\credentials.json`.
-It mounts those credentials into a temporary Kaggle home for each subprocess so
-the global login state is not changed and secrets are not written to manifests.
-Real training is strict by default: the launcher defaults to Kaggle's
-`NvidiaTeslaT4` accelerator because Kaggle's current default/P100 image can fail
-with modern PyTorch CUDA builds. If Kaggle still assigns an incompatible CUDA
-runtime, the generated script fails instead of falling back to CPU and producing
-misleading training-impact rows. The generated Kaggle kernel also defaults to a
-T4-safe memory profile: `--train-batch-size 8`, `--gradient-accumulation-steps
-64`, `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`, and `torch.compile`
-disabled unless `--train-compile` is explicitly passed. Use CPU fallback only for
-explicit smoke/debug checks:
-
-```powershell
-python -m socbench kaggle launch Salesforce/wikitext kaggle_prepared/salesforce-wikitext --output-root kaggle_train --account holykeys --tokens 2048 --train-device cpu --allow-cpu-fallback
-```
-
-Each launch writes:
-
-```text
-backend/kaggle_train/<dataset-slug>/launch-manifest.json
-```
-
-Review the generated `data/` and `kernel/` directories before starting long GPU
-training. The notebook expects Kaggle to mount data at:
-
-```text
-/kaggle/input/<dataset-slug>/train.bin
-```
-
-The generated notebook is designed to write `train.log`, `train.err`,
-`loss_curve.json`, and `eval_results.json` under `/kaggle/working`, then copy
-compact result files to the output root for download/import.
-
-### Smoke/proxy batch state
-
-On August 3, 2026, the first new Kaggle smoke/proxy runs reached Kaggle
-`COMPLETE` status, downloaded result artifacts, and were imported into the local
-training leaderboard:
-
-```text
-Salesforce/wikitext                         holykeys/socbench-train-salesfoc13c
-HuggingFaceCode/stack-v3-train              alexcathe/socbench-train-huggingd774
-r0b0tlab/qwen3.8-max-distillation-50k       ippojoe/socbench-train-r0b0tlabed1
-allenai/c4                                  holyjow/socbench-train-allenai8f7b
-HuggingFaceFW/fineweb-edu                   hiolyjo/socbench-train-hugging6b25
-NousResearch/hermes-function-calling-v1     holykeyz10/socbench-train-nousres317a
-```
-
-Those smoke kernels were then deleted to stop quota burn. Do not recreate them
-unless an explicit smoke/debug check is needed. The smoke/proxy rows prove the
-launch-download-import path and are intentionally small. Full training-impact
-runs should use compatible GPU hardware or a P100-compatible PyTorch image, and
-only actual tokens reported by the generated artifacts should be imported.
+The importer validates loss curves and evaluation metrics, records provenance in
+`training_runs`, recomputes the training and combined leaderboard scores, and
+the proof export contains the latest verified training evidence for each dataset.
 
 ## Catalog Curation
 

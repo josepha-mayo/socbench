@@ -138,31 +138,13 @@ export default function AboutPage() {
         <h3 className="text-lg font-serif font-bold pt-4">Training Impact (Stage 3)</h3>
         <p className="text-arxiv-gray">
           For top-tier datasets only. Train GPT-2 124M from scratch on each dataset
-          with a standardized token budget. Smoke/proxy runs validate the Kaggle
-          launch-download-import path; full runs measure loss curves, perplexity,
-          convergence, and relative quality. Research shows 125M proxy models can
+          with a standardized token budget. Verified runs contribute loss curves,
+          perplexity, convergence, token counts, and relative quality to the public
+          dataset evidence. Research shows 125M proxy models can
           predict data quality scaling for larger models (Ankner et al., 2024).
           This stage earns its compute &mdash; it runs only when the result answers a
           question nobody else can answer.
         </p>
-
-        <h3 className="text-lg font-serif font-bold pt-4">Launch Training</h3>
-        <p className="text-arxiv-gray">
-          Real Kaggle runs are strict CUDA runs by default. If the runtime cannot
-          provide a compatible GPU, the run fails instead of falling back to CPU.
-          The default accelerator is Kaggle&apos;s T4 GPU with a smaller micro-batch,
-          more accumulation, and torch.compile off; CPU fallback is reserved for
-          explicit smoke/debug checks only.
-        </p>
-        <div className="space-y-2">
-          <pre className="overflow-x-auto rounded border border-arxiv-border bg-white p-3 text-xs font-mono text-arxiv-dark">
-            <code>{`cd C:\\Users\\USER\\.vscode\\vibe\\backend
-python -m socbench kaggle launch Salesforce/wikitext kaggle_prepared/salesforce-wikitext --output-root kaggle_train --account holykeys --tokens 1000000000 --train-device cuda --accelerator NvidiaTeslaT4 --train-batch-size 8 --gradient-accumulation-steps 64`}</code>
-          </pre>
-          <pre className="overflow-x-auto rounded border border-arxiv-border bg-white p-3 text-xs font-mono text-arxiv-dark">
-            <code>{`python -m socbench kaggle launch Salesforce/wikitext kaggle_prepared/salesforce-wikitext --output-root kaggle_train --account holykeys --tokens 2048 --train-device cpu --allow-cpu-fallback`}</code>
-          </pre>
-        </div>
 
         <h3 className="text-lg font-serif font-bold pt-4">Score Any Dataset</h3>
         <p className="text-arxiv-gray">

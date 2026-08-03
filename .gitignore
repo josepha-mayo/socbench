@@ -39,6 +39,12 @@ backend/kaggle_pulled/
 backend/kaggle_prepared/
 backend/kaggle_train/
 backend/kaggle_training_outputs/
+# Local-only GPU orchestration. Socbench tracks validated result artifacts and proofs only.
+backend/socbench/kaggle/
+backend/tests/test_kaggle_*.py
+backend/tests/test_notebook.py
+backend/tests/test_poll_kernels.py
+backend/poll_kernels.py
 backend/output_test*/
 backend/pulled_kernel/
 backend/test_kaggle_init/

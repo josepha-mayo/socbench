@@ -31,12 +31,13 @@ app = typer.Typer(
     help="Socbench — Scientific dataset intelligence. 'The unexamined dataset is not worth training on.'",
     no_args_is_help=True,
 )
-kaggle_app = typer.Typer(help="Kaggle training bundle helpers.")
-app.add_typer(kaggle_app, name="kaggle")
-console = Console()
+# Retained only for local operational scripts; it is deliberately not exposed by
+# the public Socbench CLI or tracked with the GPU orchestration package.
+kaggle_app = typer.Typer()
 DEFAULT_KAGGLE_ACCELERATOR = "NvidiaTeslaT4"
 DEFAULT_KAGGLE_TRAIN_BATCH_SIZE = 8
 DEFAULT_KAGGLE_GRADIENT_ACCUMULATION_STEPS = 64
+console = Console()
 
 
 @app.command()
