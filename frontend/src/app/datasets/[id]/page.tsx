@@ -1,6 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { useState, useEffect } from "react";
 
 interface ScoreDetail {
@@ -196,7 +197,9 @@ export default function DatasetDetailPage() {
   return (
     <div>
       <div className="mb-6">
-        <a href="/" className="text-xs font-sans text-arxiv-gray hover:text-arxiv-red no-underline">← Back to leaderboard</a>
+        <Link href="/" className="text-xs font-sans text-arxiv-gray hover:text-arxiv-red no-underline">
+          ← Back to leaderboard
+        </Link>
         <h2 className="text-2xl font-serif font-bold text-arxiv-dark mt-2">{displayName}</h2>
         <div className="flex flex-wrap gap-3 mt-1 text-xs font-sans items-center">
           <span className="bg-arxiv-red text-white px-2 py-0.5 rounded-full">{dataset.category_label || dataset.category || "—"}</span>

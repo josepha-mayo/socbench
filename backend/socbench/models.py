@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import enum
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, Field
 from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text, func
-from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-
 
 # ---------------------------------------------------------------------------
 # SQLAlchemy ORM

@@ -27,8 +27,8 @@ async def prepare_dataset_binary(
     Returns metadata about the prepared data.
     """
     try:
-        import tiktoken
         import numpy as np
+        import tiktoken
     except ImportError as e:
         raise ImportError(f"Required packages: {e}") from e
 

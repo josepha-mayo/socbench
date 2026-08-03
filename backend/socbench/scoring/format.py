@@ -6,7 +6,6 @@ Checks from FineWeb (Penedo et al., NeurIPS 2024) and RedPajama-V2.
 from __future__ import annotations
 
 import ast
-import json
 from collections import Counter
 
 from socbench.scoring.base import ScoreResult

@@ -6,14 +6,13 @@ Socbench — 'The unexamined dataset is not worth training on.'
 from __future__ import annotations
 
 import asyncio
-import json
 import sys
 from typing import Optional
 
 import typer
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
+from rich.table import Table
 
 # Force UTF-8 output so Unicode (→, ★, ✓) renders on Windows consoles.
 if sys.platform == "win32":
@@ -49,7 +48,7 @@ def discover(
         table.add_column("Trending", justify="right")
         table.add_column("Category", style="dim")
         for ds in results:
-            from socbench.categories import classify_dataset, CATEGORIES
+            from socbench.categories import CATEGORIES, classify_dataset
             cat = classify_dataset(ds.tags or [], ds.description or "", dataset_id=ds.hf_id)
             cat_label = CATEGORIES.get(cat, CATEGORIES["pretraining-web"]).label
             table.add_row(
@@ -173,8 +172,8 @@ def recommendations(
     dataset_id: str = typer.Argument(..., help="HuggingFace dataset ID"),
 ):
     """Generate 'Best for:' recommendations for a dataset."""
+    from socbench.recommendations import format_recommendations_markdown, generate_recommendations
     from socbench.runner import run_socbench_scoring
-    from socbench.recommendations import generate_recommendations, format_recommendations_markdown
 
     async def _run():
         result = await run_socbench_scoring(dataset_id)
@@ -203,7 +202,8 @@ def classify(
 ):
     """Classify a dataset into its hierarchical category."""
     import httpx
-    from socbench.categories import classify_dataset, CATEGORIES
+
+    from socbench.categories import CATEGORIES, classify_dataset
 
     async def _run():
         async with httpx.AsyncClient(timeout=15) as client:
@@ -246,9 +246,10 @@ def leaderboard(
     top: int = typer.Option(20, help="Show top N"),
 ):
     """Show the dataset leaderboard."""
+    from sqlalchemy import select
+
     from socbench.db import async_session_factory
     from socbench.models import DatasetRow, LeaderboardRow
-    from sqlalchemy import select
 
     async def _run():
         async with async_session_factory() as session:

@@ -1,0 +1,26 @@
+{
+  "dataset_id": "teknium/OpenHermes-2.5",
+  "n_tokens": 12351343,
+  "n_samples": 30000,
+  "parameters": 124439808,
+  "max_iters": 100,
+  "final_val_loss": 11.953283309936523,
+  "best_val_loss": 10.947951316833496,
+  "loss_curve": [
+    {
+      "step": 0,
+      "train_loss": 10.938750267028809,
+      "val_loss": 10.947951316833496
+    },
+    {
+      "step": 99,
+      "train_loss": 7.149963855743408,
+      "val_loss": 11.953283309936523
+    }
+  ],
+  "gpu": "Tesla T4",
+  "pytorch_version": "2.4.0+cu118",
+  "batch_size": 16,
+  "use_fp16": true,
+  "num_gpus": 2
+}

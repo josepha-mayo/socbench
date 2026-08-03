@@ -42,7 +42,7 @@ services:
     depends_on:
       - api
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
+      SOCBENCH_API_URL: http://api:8000
 
 volumes:
   pgdata:

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import ast
 import math
-from collections import Counter
 
 from socbench.scoring.base import ScoreResult
 

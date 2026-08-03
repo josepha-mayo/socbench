@@ -20,11 +20,10 @@ Methodology based on:
 
 from __future__ import annotations
 
-import asyncio
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
-from socbench.evals.registry import EVALS, EvalBenchmark, get_all_evals
+from socbench.evals.registry import EvalBenchmark, get_all_evals
 
 
 @dataclass

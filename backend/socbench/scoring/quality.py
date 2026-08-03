@@ -9,7 +9,6 @@ Research sources:
 
 from __future__ import annotations
 
-import re
 from collections import Counter
 
 from socbench.scoring.base import ScoreResult
@@ -84,7 +83,7 @@ def _fineweb_filters(text: str) -> dict:
 
     # Fraction of lines ending with punctuation
     punct_count = sum(
-        1 for l in lines if l.strip() and l.strip()[-1] in ".!?:;,-"
+        1 for line in lines if line.strip() and line.strip()[-1] in ".!?:;,-"
     )
     punct_frac = punct_count / len(lines) if lines else 0
     if punct_frac <= FINEWEB_PUNCTUATION_THRESHOLD:
@@ -102,7 +101,7 @@ def _fineweb_filters(text: str) -> dict:
         issues.append(f"dup_char_frac={dup_char_frac:.3f}")
 
     # Fraction of lines shorter than 30 characters
-    short_count = sum(1 for l in lines if len(l.strip()) < 30)
+    short_count = sum(1 for line in lines if len(line.strip()) < 30)
     short_frac = short_count / len(lines) if lines else 0
     if short_frac >= FINEWEB_SHORT_LINES_THRESHOLD:
         issues.append(f"short_line_frac={short_frac:.3f}")
@@ -144,7 +143,7 @@ def _gopher_quality_check(text: str) -> dict:
     # Lines ending with ellipsis
     lines = text.split("\n")
     if lines:
-        ellipsis_count = sum(1 for l in lines if l.strip().endswith("..."))
+        ellipsis_count = sum(1 for line in lines if line.strip().endswith("..."))
         ellipsis_frac = ellipsis_count / len(lines)
         if ellipsis_frac > 0.30:
             issues.append(f"ellipsis_frac={ellipsis_frac:.3f}")

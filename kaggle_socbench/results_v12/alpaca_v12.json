@@ -1,0 +1,45 @@
+{
+  "dataset_id": "tatsu-lab/alpaca",
+  "n_tokens": 3331596,
+  "n_samples": 30000,
+  "parameters": 124439808,
+  "max_iters": 500,
+  "final_val_loss": 3.070652961730957,
+  "best_val_loss": 3.001704216003418,
+  "loss_curve": [
+    {
+      "step": 0,
+      "train_loss": 10.947732925415039,
+      "val_loss": 10.942978858947754
+    },
+    {
+      "step": 100,
+      "train_loss": 3.7979681491851807,
+      "val_loss": 3.9981043338775635
+    },
+    {
+      "step": 200,
+      "train_loss": 3.0050957202911377,
+      "val_loss": 3.343651533126831
+    },
+    {
+      "step": 300,
+      "train_loss": 2.352001428604126,
+      "val_loss": 3.0816538333892822
+    },
+    {
+      "step": 400,
+      "train_loss": 1.9442743062973022,
+      "val_loss": 3.001704216003418
+    },
+    {
+      "step": 499,
+      "train_loss": 1.6919560432434082,
+      "val_loss": 3.070652961730957
+    }
+  ],
+  "gpu": "Tesla P100-PCIE-16GB",
+  "pytorch_version": "2.4.0+cu118",
+  "batch_size": 4,
+  "use_fp16": false
+}

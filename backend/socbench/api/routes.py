@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
+import time
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import select, func
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select
 
 from socbench.db import async_session_factory
 from socbench.models import (
-    ContaminationRow,
     DatasetRow,
     LeaderboardRow,
     ScoreRow,
@@ -20,6 +20,43 @@ from socbench.models import (
 from socbench.runner import run_socbench_scoring
 
 router = APIRouter()
+
+_PENDING_SCAN_CACHE_TTL_SECONDS = 300
+_PENDING_SCAN_TIMEOUT_SECONDS = 6
+_pending_scan_cache: dict[str, object] = {
+    "expires_at": 0.0,
+    "trending": [],
+    "most_used": [],
+}
+
+
+async def _get_training_pending_candidates():
+    """Fetch HF pending-training candidates without making the page wait on slow scans."""
+    now = time.monotonic()
+    if now < float(_pending_scan_cache["expires_at"]):
+        return _pending_scan_cache["trending"], _pending_scan_cache["most_used"]
+
+    from socbench.discovery.scanner import scan_datasets
+
+    async def _scan(sort: str):
+        return await asyncio.wait_for(
+            scan_datasets(sort=sort, limit=10, days=None),
+            timeout=_PENDING_SCAN_TIMEOUT_SECONDS,
+        )
+
+    trending_result, most_used_result = await asyncio.gather(
+        _scan("trendingScore"),
+        _scan("downloads"),
+        return_exceptions=True,
+    )
+
+    if not isinstance(trending_result, Exception):
+        _pending_scan_cache["trending"] = trending_result
+    if not isinstance(most_used_result, Exception):
+        _pending_scan_cache["most_used"] = most_used_result
+
+    _pending_scan_cache["expires_at"] = now + _PENDING_SCAN_CACHE_TTL_SECONDS
+    return _pending_scan_cache["trending"], _pending_scan_cache["most_used"]
 
 
 @router.get("/datasets")
@@ -230,8 +267,7 @@ async def get_training_leaderboard(
       - Top 10 trending HF datasets (marked "pending")
       - Top 10 most downloaded HF datasets (marked "pending")
     """
-    from socbench.discovery.scanner import scan_datasets
-    from socbench.categories import classify_dataset, CATEGORIES
+    from socbench.categories import CATEGORIES, classify_dataset
 
     def s100(val):
         if val is None:
@@ -276,16 +312,9 @@ async def get_training_leaderboard(
             })
             seen.add(ds.hf_id)
 
-    # Pull the EXACT HF trending list and most-downloaded list, mark as pending training.
-    try:
-        trending_raw = await scan_datasets(sort="trendingScore", limit=10, days=None)
-    except Exception:
-        trending_raw = []
-
-    try:
-        most_used_raw = await scan_datasets(sort="downloads", limit=10, days=None)
-    except Exception:
-        most_used_raw = []
+    # Pull live HF pending candidates when fast, otherwise keep the trained
+    # leaderboard responsive and fall back to the last successful scan.
+    trending_raw, most_used_raw = await _get_training_pending_candidates()
 
     def _add_pending(rows, source):
         for ds in rows:
@@ -329,8 +358,8 @@ async def discover_datasets(
     days: Optional[int] = Query(None),
 ):
     """Run HF discovery scan."""
+    from socbench.categories import CATEGORIES, classify_dataset
     from socbench.discovery.scanner import scan_datasets
-    from socbench.categories import classify_dataset, CATEGORIES
 
     datasets = await scan_datasets(
         search=search,
@@ -424,8 +453,8 @@ async def get_trending(
     days: Optional[int] = Query(7),
 ):
     """Fetch real trending datasets from HuggingFace — dynamic, not hardcoded."""
+    from socbench.categories import CATEGORIES, classify_dataset
     from socbench.discovery.scanner import scan_datasets
-    from socbench.categories import classify_dataset, CATEGORIES
 
     datasets = await scan_datasets(
         sort="trendingScore",

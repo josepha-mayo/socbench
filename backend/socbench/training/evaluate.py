@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional
 
 
 def load_loss_curve(checkpoint_dir: str) -> dict:
@@ -47,7 +46,9 @@ def compute_training_metrics(loss_curve: list[float], total_tokens: int = 0) -> 
     last_10 = loss_curve[int(len(loss_curve) * 0.9) :]
     if len(last_10) > 1:
         mean_last = sum(last_10) / len(last_10)
-        stability = (sum((l - mean_last) ** 2 for l in last_10) / len(last_10)) ** 0.5
+        stability = (
+            sum((loss_value - mean_last) ** 2 for loss_value in last_10) / len(last_10)
+        ) ** 0.5
     else:
         stability = 0.0
 

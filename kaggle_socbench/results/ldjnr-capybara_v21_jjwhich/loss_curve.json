@@ -1,0 +1,31 @@
+{
+  "dataset_id": "LDJnr/Capybara",
+  "n_tokens": 15753126,
+  "n_samples": 16006,
+  "parameters": 124439808,
+  "max_iters": 137,
+  "final_val_loss": 9.847280502319336,
+  "best_val_loss": 9.754898071289062,
+  "loss_curve": [
+    {
+      "step": 0,
+      "train_loss": 10.956192970275879,
+      "val_loss": 10.934544563293457
+    },
+    {
+      "step": 100,
+      "train_loss": 0.0027249210979789495,
+      "val_loss": 9.754898071289062
+    },
+    {
+      "step": 136,
+      "train_loss": 0.0019447815138846636,
+      "val_loss": 9.847280502319336
+    }
+  ],
+  "gpu": "Tesla T4",
+  "pytorch_version": "2.4.0+cu118",
+  "batch_size": 8,
+  "use_fp16": false,
+  "num_gpus": 2
+}

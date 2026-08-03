@@ -1,0 +1,26 @@
+{
+  "dataset_id": "OpenAssistant/oasst1",
+  "n_tokens": 5887189,
+  "n_samples": 30000,
+  "parameters": 124439808,
+  "max_iters": 100,
+  "final_val_loss": 12.26734733581543,
+  "best_val_loss": 10.971887588500977,
+  "loss_curve": [
+    {
+      "step": 0,
+      "train_loss": 10.973321914672852,
+      "val_loss": 10.971887588500977
+    },
+    {
+      "step": 99,
+      "train_loss": 7.010741710662842,
+      "val_loss": 12.26734733581543
+    }
+  ],
+  "gpu": "Tesla T4",
+  "pytorch_version": "2.4.0+cu118",
+  "batch_size": 16,
+  "use_fp16": true,
+  "num_gpus": 2
+}

@@ -1,0 +1,31 @@
+{
+  "dataset_id": "HuggingFaceH4/ultrachat_200k",
+  "n_tokens": 36207719,
+  "n_samples": 30000,
+  "parameters": 124439808,
+  "max_iters": 138,
+  "final_val_loss": 16.076622009277344,
+  "best_val_loss": 10.973557472229004,
+  "loss_curve": [
+    {
+      "step": 0,
+      "train_loss": 10.956568717956543,
+      "val_loss": 10.973557472229004
+    },
+    {
+      "step": 100,
+      "train_loss": 7.003169059753418,
+      "val_loss": 15.262277603149414
+    },
+    {
+      "step": 137,
+      "train_loss": 7.002384185791016,
+      "val_loss": 16.076622009277344
+    }
+  ],
+  "gpu": "Tesla T4",
+  "pytorch_version": "2.4.0+cu118",
+  "batch_size": 16,
+  "use_fp16": true,
+  "num_gpus": 2
+}

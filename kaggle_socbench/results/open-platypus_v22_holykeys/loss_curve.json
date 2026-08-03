@@ -1,0 +1,26 @@
+{
+  "dataset_id": "garage-bAInd/Open-Platypus",
+  "n_tokens": 6956187,
+  "n_samples": 24926,
+  "parameters": 124439808,
+  "max_iters": 50,
+  "final_val_loss": 7.180256366729736,
+  "best_val_loss": 7.180256366729736,
+  "loss_curve": [
+    {
+      "step": 0,
+      "train_loss": 10.936707496643066,
+      "val_loss": 10.965994834899902
+    },
+    {
+      "step": 49,
+      "train_loss": 2.266702175140381,
+      "val_loss": 7.180256366729736
+    }
+  ],
+  "gpu": "Tesla T4",
+  "pytorch_version": "2.4.0+cu118",
+  "batch_size": 8,
+  "use_fp16": false,
+  "num_gpus": 2
+}

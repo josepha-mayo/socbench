@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
-from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -48,7 +47,6 @@ class SocbenchScore:
 
 def compute_coverage(samples: list[str]) -> dict:
     """Compute language and domain coverage metrics."""
-    from socbench.scoring.language import language_scorer
 
     # Approximate language coverage by counting non-ASCII
     total = len(samples)
@@ -199,7 +197,7 @@ def _robust_diversity(samples: list[dict], text_key: str) -> tuple[float, dict]:
     ttr = len(set(tokens)) / len(tokens)
     ttr_norm = min(ttr * 4.0, 1.0)  # ttr ~0.25 -> 1.0; penalizes extreme repetition
 
-    lines = [l.strip() for txt in texts for l in txt.split("\n") if l.strip()]
+    lines = [line.strip() for txt in texts for line in txt.split("\n") if line.strip()]
     rep_health = 1.0 - (1.0 - len(set(lines)) / len(lines)) if lines else 1.0
 
     score = min(0.6 * ttr_norm + 0.4 * rep_health, 1.0)
@@ -217,9 +215,8 @@ async def compute_multi_dimension_score(
     text_key: str = "text",
 ) -> SocbenchScore:
     """Compute the full multi-dimension Socbench score for a dataset."""
-    from socbench.scoring import run_all_scorers, ScoreResult
-    from socbench.scoring.dedup import dedup_scorer
     from socbench.categories import CATEGORIES, get_category_metrics
+    from socbench.scoring import ScoreResult, run_all_scorers
 
     cat = CATEGORIES.get(category_key, CATEGORIES["pretraining-web"])
     cat_metrics = get_category_metrics(category_key)

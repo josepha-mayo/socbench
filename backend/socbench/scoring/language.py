@@ -19,8 +19,6 @@ async def language_scorer(
     try:
         import fasttext  # noqa: F401
         from fasttext_langdetect import detect
-
-        model = None  # fasttext-langdetect handles loading internally
     except (ImportError, OSError):
         return await _heuristic_language(samples, text_key, expected_language)
 

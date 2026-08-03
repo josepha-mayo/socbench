@@ -1,15 +1,14 @@
 """Tests for scoring pipeline."""
 
-import asyncio
 import pytest
+
+from socbench.scoring.base import ScoreResult
+from socbench.scoring.code import code_scorer
 from socbench.scoring.dedup import dedup_scorer
 from socbench.scoring.format import format_scorer
-from socbench.scoring.tokens import token_scorer
 from socbench.scoring.pii import pii_scorer
 from socbench.scoring.quality import quality_scorer
-from socbench.scoring.code import code_scorer
-from socbench.scoring.base import ScoreResult
-
+from socbench.scoring.tokens import token_scorer
 
 SAMPLE_TEXTS = [
     {"text": "The quick brown fox jumps over the lazy dog. This is a sample sentence for testing."},

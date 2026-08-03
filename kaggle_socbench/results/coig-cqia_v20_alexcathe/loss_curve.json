@@ -1,0 +1,31 @@
+{
+  "dataset_id": "m-a-p/COIG-CQIA",
+  "n_tokens": 18404541,
+  "n_samples": 10603,
+  "parameters": 124439808,
+  "max_iters": 140,
+  "final_val_loss": 5.786175727844238,
+  "best_val_loss": 5.743587017059326,
+  "loss_curve": [
+    {
+      "step": 0,
+      "train_loss": 10.996143341064453,
+      "val_loss": 11.038376808166504
+    },
+    {
+      "step": 100,
+      "train_loss": 5.359801769256592,
+      "val_loss": 5.743587017059326
+    },
+    {
+      "step": 139,
+      "train_loss": 5.366084098815918,
+      "val_loss": 5.786175727844238
+    }
+  ],
+  "gpu": "Tesla T4",
+  "pytorch_version": "2.4.0+cu118",
+  "batch_size": 16,
+  "use_fp16": true,
+  "num_gpus": 2
+}

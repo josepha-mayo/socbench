@@ -5,9 +5,6 @@ Uses tiktoken cl100k_base for tokenization.
 
 from __future__ import annotations
 
-import math
-from collections import Counter
-
 from socbench.scoring.base import ScoreResult
 
 

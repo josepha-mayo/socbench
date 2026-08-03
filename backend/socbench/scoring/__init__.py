@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from socbench.scoring.base import ScoreResult
+from socbench.scoring.code import code_scorer
 from socbench.scoring.dedup import dedup_scorer
 from socbench.scoring.format import format_scorer
-from socbench.scoring.tokens import token_scorer
 from socbench.scoring.language import language_scorer
 from socbench.scoring.pii import pii_scorer
 from socbench.scoring.quality import quality_scorer
-from socbench.scoring.code import code_scorer
+from socbench.scoring.tokens import token_scorer
 
 __all__ = [
     "run_all_scorers",

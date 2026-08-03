@@ -7,9 +7,8 @@ Actionable guidance, not abstract numbers.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
 
-from socbench.categories import CATEGORIES, Category
+from socbench.categories import CATEGORIES
 
 
 @dataclass(frozen=True)

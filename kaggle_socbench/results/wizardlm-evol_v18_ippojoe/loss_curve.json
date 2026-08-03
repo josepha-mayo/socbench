@@ -1,0 +1,26 @@
+{
+  "dataset_id": "WizardLMTeam/WizardLM_evol_instruct_70k",
+  "n_tokens": 9979009,
+  "n_samples": 30000,
+  "parameters": 124439808,
+  "max_iters": 100,
+  "final_val_loss": 11.940694808959961,
+  "best_val_loss": 10.947754859924316,
+  "loss_curve": [
+    {
+      "step": 0,
+      "train_loss": 10.972890853881836,
+      "val_loss": 10.947754859924316
+    },
+    {
+      "step": 99,
+      "train_loss": 6.898711681365967,
+      "val_loss": 11.940694808959961
+    }
+  ],
+  "gpu": "Tesla T4",
+  "pytorch_version": "2.4.0+cu118",
+  "batch_size": 16,
+  "use_fp16": true,
+  "num_gpus": 2
+}

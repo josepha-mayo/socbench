@@ -2,7 +2,8 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY pyproject.toml .
+COPY pyproject.toml README.md ./
+COPY socbench ./socbench
 RUN pip install --no-cache-dir -e ".[dev,train]"
 
 COPY . .

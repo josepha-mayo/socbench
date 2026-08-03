@@ -1,11 +1,11 @@
 """Tests for discovery pipeline."""
 
 import pytest
+
 from socbench.discovery.scanner import (
-    DiscoveredDataset,
-    qualify_dataset,
     _extract_languages,
     _extract_license,
+    qualify_dataset,
 )
 
 

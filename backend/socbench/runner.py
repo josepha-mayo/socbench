@@ -11,11 +11,10 @@ from typing import Optional
 
 import httpx
 
-from socbench.categories import classify_dataset, get_category_metrics
+from socbench.categories import classify_dataset
 from socbench.contamination.checker import check_texts_against_benchmarks
-from socbench.score import compute_multi_dimension_score, SocbenchScore, _extract_text
-from socbench.scoring.base import ScoreResult
 from socbench.provenance import get_provenance
+from socbench.score import _extract_text, compute_multi_dimension_score
 
 VIEWER_API = "https://datasets-server.huggingface.co"
 
@@ -317,9 +316,6 @@ async def run_socbench_scoring(
 
     # Get provenance
     provenance = get_provenance(dataset_id)
-
-    # Get category metrics
-    cat_metrics = get_category_metrics(category_key)
 
     # Compute supporting dimensions from REAL HF metadata (not placeholders)
     doc_score, doc_details = compute_documentation_score(metadata)
