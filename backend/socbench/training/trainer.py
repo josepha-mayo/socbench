@@ -104,8 +104,11 @@ lr_decay_iters = max_iters
 min_lr = {TRAIN.lr_decay_to}
 
 # System
-device = os.environ.get("SOCBENCH_TRAIN_DEVICE", "cuda")
-dtype = "float16"
+device = os.environ.get("SOCBENCH_TRAIN_DEVICE", "cuda").lower()
+allow_cpu_fallback = os.environ.get("SOCBENCH_ALLOW_CPU_FALLBACK", "0").lower() in {"1", "true", "yes"}
+if device not in {"cuda", "cpu"}:
+    raise RuntimeError(f"Unsupported SOCBENCH_TRAIN_DEVICE={{device!r}}; expected 'cuda' or 'cpu'")
+dtype = "float16" if device == "cuda" else "float32"
 compile = {TRAIN.compile} and device == "cuda"
 if device == "cuda":
     try:
@@ -115,6 +118,11 @@ if device == "cuda":
             raise RuntimeError(f"CUDA capability sm_{{capability[0]}}{{capability[1]}} is below the supported floor")
         torch.empty(1, device="cuda")
     except Exception as exc:
+        if not allow_cpu_fallback:
+            raise RuntimeError(
+                f"CUDA unavailable or unsupported ({{exc}}). "
+                "Set SOCBENCH_ALLOW_CPU_FALLBACK=1 only for explicit smoke/debug runs."
+            ) from exc
         print(f"CUDA unavailable or unsupported ({{exc}}); falling back to CPU")
         device = "cpu"
         dtype = "float32"

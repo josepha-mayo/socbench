@@ -20,6 +20,7 @@ from pathlib import Path
 from socbench.kaggle.notebook import dataset_safe_id, save_script_kernel
 
 DEFAULT_LICENSE = "CC0-1.0"
+DEFAULT_ACCELERATOR = "NvidiaTeslaT4"
 MAX_KAGGLE_TITLE_LENGTH = 50
 
 
@@ -30,6 +31,8 @@ class KaggleTrainingBundle:
     kaggle_dataset_slug: str
     kaggle_dataset_ref: str
     kernel_slug: str
+    train_device: str
+    allow_cpu_fallback: bool
     bundle_dir: Path
     data_dir: Path
     kernel_dir: Path
@@ -82,8 +85,13 @@ def create_training_bundle(
     tokens: int = 1_000_000_000,
     binary_filename: str = "train.bin",
     license_name: str = DEFAULT_LICENSE,
+    train_device: str = "cuda",
+    allow_cpu_fallback: bool = False,
 ) -> KaggleTrainingBundle:
     """Create a local Kaggle dataset+kernel bundle for one training run."""
+    train_device = train_device.lower()
+    if train_device not in {"cuda", "cpu"}:
+        raise ValueError("train_device must be 'cuda' or 'cpu'")
     prepared_dir = Path(prepared_data_dir)
     source_bin = prepared_dir / binary_filename
     if not source_bin.exists():
@@ -121,6 +129,8 @@ def create_training_bundle(
         tokens=tokens,
         dataset_owner=kaggle_owner,
         kaggle_dataset_slug=dataset_slug,
+        train_device=train_device,
+        allow_cpu_fallback=allow_cpu_fallback,
     )
 
     return KaggleTrainingBundle(
@@ -129,6 +139,8 @@ def create_training_bundle(
         kaggle_dataset_slug=dataset_slug,
         kaggle_dataset_ref=f"{kaggle_owner}/{dataset_slug}",
         kernel_slug=kernel_result["slug"],
+        train_device=train_device,
+        allow_cpu_fallback=allow_cpu_fallback,
         bundle_dir=bundle_dir,
         data_dir=data_dir,
         kernel_dir=kernel_dir,
@@ -182,6 +194,7 @@ def push_training_bundle(
     kaggle_api_token: str | None = None,
     kaggle_credentials_file: str | None = None,
     message: str = "Update prepared Socbench data",
+    accelerator: str | None = DEFAULT_ACCELERATOR,
 ) -> KaggleLaunchResult:
     """Upload/refresh the prepared dataset, push the kernel, and write a manifest."""
     try:
@@ -215,8 +228,12 @@ def push_training_bundle(
         )
         dataset_action = "version"
 
+    kernel_args = ["kaggle", "kernels", "push", "-p", str(bundle.kernel_dir)]
+    if accelerator:
+        kernel_args.extend(["--accelerator", accelerator])
+
     kernel_output = _run_kaggle_command(
-        ["kaggle", "kernels", "push", "-p", str(bundle.kernel_dir)],
+        kernel_args,
         config_dir=kaggle_config_dir,
         timeout=240,
         api_token=kaggle_api_token,
@@ -229,6 +246,9 @@ def push_training_bundle(
         "kaggle_dataset_ref": bundle.kaggle_dataset_ref,
         "kernel_id": f"{bundle.kaggle_owner}/{bundle.kernel_slug}",
         "kernel_slug": bundle.kernel_slug,
+        "train_device": bundle.train_device,
+        "allow_cpu_fallback": bundle.allow_cpu_fallback,
+        "accelerator": accelerator,
         "dataset_action": dataset_action,
         "bundle_dir": str(bundle.bundle_dir),
         "data_dir": str(bundle.data_dir),

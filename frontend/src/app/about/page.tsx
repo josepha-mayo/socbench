@@ -146,6 +146,23 @@ export default function AboutPage() {
           question nobody else can answer.
         </p>
 
+        <h3 className="text-lg font-serif font-bold pt-4">Launch Training</h3>
+        <p className="text-arxiv-gray">
+          Real Kaggle runs are strict CUDA runs by default. If the runtime cannot
+          provide a compatible GPU, the run fails instead of falling back to CPU.
+          The default accelerator is Kaggle&apos;s T4 GPU; CPU fallback is reserved
+          for explicit smoke/debug checks only.
+        </p>
+        <div className="space-y-2">
+          <pre className="overflow-x-auto rounded border border-arxiv-border bg-white p-3 text-xs font-mono text-arxiv-dark">
+            <code>{`cd C:\\Users\\USER\\.vscode\\vibe\\backend
+python -m socbench kaggle launch Salesforce/wikitext kaggle_prepared/salesforce-wikitext --output-root kaggle_train --account holykeys --tokens 1000000000 --train-device cuda --accelerator NvidiaTeslaT4`}</code>
+          </pre>
+          <pre className="overflow-x-auto rounded border border-arxiv-border bg-white p-3 text-xs font-mono text-arxiv-dark">
+            <code>{`python -m socbench kaggle launch Salesforce/wikitext kaggle_prepared/salesforce-wikitext --output-root kaggle_train --account holykeys --tokens 2048 --train-device cpu --allow-cpu-fallback`}</code>
+          </pre>
+        </div>
+
         <h3 className="text-lg font-serif font-bold pt-4">Score Any Dataset</h3>
         <p className="text-arxiv-gray">
           Socbench can score any public Hugging Face dataset ID from the command line

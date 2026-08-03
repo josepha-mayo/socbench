@@ -34,6 +34,7 @@ app = typer.Typer(
 kaggle_app = typer.Typer(help="Kaggle training bundle helpers.")
 app.add_typer(kaggle_app, name="kaggle")
 console = Console()
+DEFAULT_KAGGLE_ACCELERATOR = "NvidiaTeslaT4"
 
 
 @app.command()
@@ -350,6 +351,16 @@ def kaggle_bundle(
     account: Optional[str] = typer.Option(None, help="Kaggle account name or username"),
     tokens: int = typer.Option(1_000_000_000, help="Token budget for generated training script"),
     binary_filename: str = typer.Option("train.bin", help="Prepared binary filename"),
+    train_device: str = typer.Option("cuda", help="Training device baked into the kernel: cuda or cpu"),
+    allow_cpu_fallback: bool = typer.Option(
+        False,
+        "--allow-cpu-fallback",
+        help="Allow CUDA kernels to fall back to CPU. Use only for smoke/debug runs.",
+    ),
+    accelerator: Optional[str] = typer.Option(
+        DEFAULT_KAGGLE_ACCELERATOR,
+        help="Kaggle accelerator string shown in push command",
+    ),
 ):
     """Create a local Kaggle dataset+kernel bundle for a prepared training run."""
     from socbench.kaggle.accounts import DEFAULT_PROFILES_DIR, MultiAccountManager
@@ -373,19 +384,26 @@ def kaggle_bundle(
         kaggle_owner=selected.username,
         tokens=tokens,
         binary_filename=binary_filename,
+        train_device=train_device,
+        allow_cpu_fallback=allow_cpu_fallback,
     )
 
     console.print(Panel(f"[bold]{dataset_id}[/bold]\n{bundle.bundle_dir}", title="Kaggle Training Bundle"))
     console.print(f"Dataset ref: [cyan]{bundle.kaggle_dataset_ref}[/cyan]")
     console.print(f"Kernel slug: [cyan]{bundle.kernel_slug}[/cyan]")
     console.print(f"Account: [cyan]{selected.name}[/cyan] ({selected.username})")
+    console.print(f"Train device: [cyan]{bundle.train_device}[/cyan]")
+    console.print(f"CPU fallback: [cyan]{bundle.allow_cpu_fallback}[/cyan]")
     console.print("\n[bold]Review files:[/bold]")
     console.print(f"  Data:   {bundle.data_dir}")
     console.print(f"  Kernel: {bundle.kernel_dir}")
     console.print("\n[bold]Push commands:[/bold]")
     console.print(f'$env:KAGGLE_CONFIG_DIR = "{selected.config_dir}"')
     console.print(f'kaggle datasets create -p "{bundle.data_dir}" --dir-mode zip')
-    console.print(f'kaggle kernels push -p "{bundle.kernel_dir}"')
+    push_command = f'kaggle kernels push -p "{bundle.kernel_dir}"'
+    if accelerator:
+        push_command += f" --accelerator {accelerator}"
+    console.print(push_command)
     console.print("\nIf the dataset already exists, use:")
     console.print(f'kaggle datasets version -p "{bundle.data_dir}" -m "Update prepared Socbench data" --dir-mode zip')
 
@@ -398,6 +416,16 @@ def kaggle_launch(
     account: Optional[str] = typer.Option(None, help="Kaggle account name or username"),
     tokens: int = typer.Option(1_000_000_000, help="Token budget for generated training script"),
     binary_filename: str = typer.Option("train.bin", help="Prepared binary filename"),
+    train_device: str = typer.Option("cuda", help="Training device baked into the kernel: cuda or cpu"),
+    allow_cpu_fallback: bool = typer.Option(
+        False,
+        "--allow-cpu-fallback",
+        help="Allow CUDA kernels to fall back to CPU. Use only for smoke/debug runs.",
+    ),
+    accelerator: Optional[str] = typer.Option(
+        DEFAULT_KAGGLE_ACCELERATOR,
+        help="Kaggle accelerator string passed to kernels push",
+    ),
 ):
     """Create/version the Kaggle dataset and push the GPU training kernel."""
     from socbench.kaggle.accounts import DEFAULT_PROFILES_DIR, MultiAccountManager
@@ -421,6 +449,8 @@ def kaggle_launch(
         kaggle_owner=selected.username,
         tokens=tokens,
         binary_filename=binary_filename,
+        train_device=train_device,
+        allow_cpu_fallback=allow_cpu_fallback,
     )
     try:
         result = push_training_bundle(
@@ -428,6 +458,7 @@ def kaggle_launch(
             kaggle_config_dir=selected.config_dir,
             kaggle_api_token=selected.access_token,
             kaggle_credentials_file=selected.credentials_file,
+            accelerator=accelerator,
         )
     except RuntimeError as exc:
         console.print(f"[red]Kaggle launch failed:[/red] {exc}")
@@ -437,6 +468,9 @@ def kaggle_launch(
     console.print(f"Account: [cyan]{selected.name}[/cyan] ({selected.username})")
     console.print(f"Dataset ref: [cyan]{bundle.kaggle_dataset_ref}[/cyan] ({result.dataset_action})")
     console.print(f"Kernel: [cyan]{bundle.kaggle_owner}/{bundle.kernel_slug}[/cyan]")
+    console.print(f"Train device: [cyan]{bundle.train_device}[/cyan]")
+    console.print(f"CPU fallback: [cyan]{bundle.allow_cpu_fallback}[/cyan]")
+    console.print(f"Accelerator: [cyan]{accelerator or 'metadata default'}[/cyan]")
     console.print(f"Manifest: [cyan]{result.manifest_path}[/cyan]")
 
 

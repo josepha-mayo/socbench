@@ -34,6 +34,8 @@ def generate_notebook(
     output_dir: str = "/kaggle/temp/socbench_output",
     dataset_owner: str | None = None,
     kaggle_dataset_slug: str | None = None,
+    train_device: str = "cuda",
+    allow_cpu_fallback: bool = False,
 ) -> dict:
     """Generate a Kaggle notebook (ipynb format) for training a dataset.
 
@@ -57,6 +59,8 @@ def generate_notebook(
     )
 
     train_script_literal = json.dumps(train_script)
+    train_device_literal = json.dumps(train_device)
+    allow_cpu_fallback_literal = "1" if allow_cpu_fallback else "0"
 
     notebook = {
         "cells": [
@@ -126,7 +130,8 @@ def generate_notebook(
                     "\\n",
                     "os.environ['NCCL_P2P_DISABLE'] = '1'\\n",
                     "os.environ['TOKENIZERS_PARALLELISM'] = 'false'\\n",
-                    "os.environ['SOCBENCH_TRAIN_DEVICE'] = 'cpu'\\n",
+                    f"os.environ['SOCBENCH_TRAIN_DEVICE'] = {train_device_literal}\\n",
+                    f"os.environ['SOCBENCH_ALLOW_CPU_FALLBACK'] = '{allow_cpu_fallback_literal}'\\n",
                     "\\n",
                     "train_path = Path('/kaggle/working/train.py')\\n",
                     "train_script = " + train_script_literal + "\\n",
@@ -209,6 +214,8 @@ def generate_kernel_script(
     output_dir: str = "/kaggle/temp/socbench_output",
     dataset_owner: str | None = None,
     kaggle_dataset_slug: str | None = None,
+    train_device: str = "cuda",
+    allow_cpu_fallback: bool = False,
 ) -> dict:
     """Generate a plain Python Kaggle script kernel for training."""
     safe_id = dataset_safe_id(dataset_id)
@@ -223,6 +230,8 @@ def generate_kernel_script(
         output_dir=output_dir,
         tokens=tokens,
     )
+    train_device_literal = json.dumps(train_device)
+    allow_cpu_fallback_literal = "1" if allow_cpu_fallback else "0"
     source = f"""
 import json
 import os
@@ -240,7 +249,8 @@ os.environ['HF_HUB_DISABLE_XET'] = '1'
 os.environ['HF_HOME'] = '/kaggle/working/hf_cache'
 os.environ['NCCL_P2P_DISABLE'] = '1'
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
-os.environ['SOCBENCH_TRAIN_DEVICE'] = 'cpu'
+os.environ['SOCBENCH_TRAIN_DEVICE'] = {train_device_literal}
+os.environ['SOCBENCH_ALLOW_CPU_FALLBACK'] = '{allow_cpu_fallback_literal}'
 
 candidate_paths = [
     Path({json.dumps(f"{dataset_mount_path}/{binary_filename}")}),

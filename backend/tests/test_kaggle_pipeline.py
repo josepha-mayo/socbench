@@ -41,6 +41,8 @@ def test_create_training_bundle_writes_data_and_kernel_files(tmp_path: Path):
     )
 
     assert bundle.kaggle_dataset_ref == "holykeys/org-my-dataset"
+    assert bundle.train_device == "cuda"
+    assert bundle.allow_cpu_fallback is False
     assert bundle.train_bin.exists()
     assert bundle.train_bin.read_bytes() == b"\x01\x00\x02\x00"
 
@@ -57,6 +59,8 @@ def test_create_training_bundle_writes_data_and_kernel_files(tmp_path: Path):
     kernel_source = (bundle.kernel_dir / "kernel.py").read_text(encoding="utf-8")
     compile(kernel_source, "<generated-kaggle-script>", "exec")
     assert "/kaggle/input/org-my-dataset/train.bin" in kernel_source
+    assert "os.environ['SOCBENCH_TRAIN_DEVICE'] = \"cuda\"" in kernel_source
+    assert "os.environ['SOCBENCH_ALLOW_CPU_FALLBACK'] = '0'" in kernel_source
 
 
 def test_push_training_bundle_versions_existing_dataset(tmp_path: Path, monkeypatch):
@@ -93,6 +97,10 @@ def test_push_training_bundle_versions_existing_dataset(tmp_path: Path, monkeypa
     assert calls[0][:3] == ["kaggle", "datasets", "create"]
     assert calls[1][:3] == ["kaggle", "datasets", "version"]
     assert calls[2][:3] == ["kaggle", "kernels", "push"]
+    assert calls[2][-2:] == ["--accelerator", "NvidiaTeslaT4"]
     manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
     assert manifest["kaggle_dataset_ref"] == "holykeys/org-my-dataset"
     assert manifest["kernel_id"] == "holykeys/socbench-train-org-my-b7e6"
+    assert manifest["train_device"] == "cuda"
+    assert manifest["allow_cpu_fallback"] is False
+    assert manifest["accelerator"] == "NvidiaTeslaT4"

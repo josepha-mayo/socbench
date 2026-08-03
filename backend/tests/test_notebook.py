@@ -43,6 +43,8 @@ def test_generate_notebook_returns_valid_json_and_expected_strings():
     assert "Training exited with code" in source
     assert "NCCL_P2P_DISABLE" in source
     assert "TOKENIZERS_PARALLELISM" in source
+    assert "SOCBENCH_TRAIN_DEVICE'] = \"cuda\"" in source
+    assert "SOCBENCH_ALLOW_CPU_FALLBACK'] = '0'" in source
     assert "RuntimeError" in source
     compile(source, "<generated-notebook-cell>", "exec")
 
@@ -90,8 +92,22 @@ def test_generate_kernel_script_compiles_and_uses_script_metadata():
     assert result["kernel_metadata"]["kernel_type"] == "script"
     assert result["kernel_metadata"]["code_file"] == "kernel.py"
     assert "SOCBENCH_RESULT_JSON=" in result["source"]
+    assert "os.environ['SOCBENCH_TRAIN_DEVICE'] = \"cuda\"" in result["source"]
+    assert "os.environ['SOCBENCH_ALLOW_CPU_FALLBACK'] = '0'" in result["source"]
     assert "'torch'," not in result["source"]
     assert "/kaggle/input/datasets/holykeys/user-my-dataset/train.bin" in result["source"]
+
+
+def test_generate_kernel_script_can_opt_into_cpu_smoke_mode():
+    result = generate_kernel_script(
+        "user/my-dataset",
+        dataset_owner="holykeys",
+        train_device="cpu",
+        allow_cpu_fallback=True,
+    )
+
+    assert "os.environ['SOCBENCH_TRAIN_DEVICE'] = \"cpu\"" in result["source"]
+    assert "os.environ['SOCBENCH_ALLOW_CPU_FALLBACK'] = '1'" in result["source"]
 
 
 def test_kernel_slug_for_empty_prefix_fallback():

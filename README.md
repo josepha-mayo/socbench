@@ -250,10 +250,10 @@ Prepare a dataset binary first:
 python -c "import asyncio; from socbench.training.data_prep import prepare_dataset_binary; asyncio.run(prepare_dataset_binary('Salesforce/wikitext', 'kaggle_prepared/salesforce-wikitext', max_samples=100000))"
 ```
 
-Create the local Kaggle bundle:
+Create the local Kaggle bundle for a real GPU run:
 
 ```powershell
-python -m socbench kaggle bundle Salesforce/wikitext kaggle_prepared/salesforce-wikitext --output-root kaggle_train --account holykeys
+python -m socbench kaggle bundle Salesforce/wikitext kaggle_prepared/salesforce-wikitext --output-root kaggle_train --account holykeys --tokens 1000000000 --train-device cuda --accelerator NvidiaTeslaT4
 ```
 
 The command prints exact push commands like:
@@ -261,7 +261,7 @@ The command prints exact push commands like:
 ```powershell
 $env:KAGGLE_CONFIG_DIR = "C:\Users\USER\.vscode\model_ablation\.kaggle_profiles\holykeys\.kaggle"
 kaggle datasets create -p "kaggle_train\salesforce-wikitext\data" --dir-mode zip
-kaggle kernels push -p "kaggle_train\salesforce-wikitext\kernel"
+kaggle kernels push -p "kaggle_train\salesforce-wikitext\kernel" --accelerator NvidiaTeslaT4
 ```
 
 If the Kaggle dataset already exists, use `kaggle datasets version` instead of
@@ -271,13 +271,24 @@ To upload/version the prepared Kaggle dataset and push the GPU kernel in one
 step, use:
 
 ```powershell
-python -m socbench kaggle launch Salesforce/wikitext kaggle_prepared/salesforce-wikitext --output-root kaggle_train --account holykeys --tokens 5000000
+python -m socbench kaggle launch Salesforce/wikitext kaggle_prepared/salesforce-wikitext --output-root kaggle_train --account holykeys --tokens 1000000000 --train-device cuda --accelerator NvidiaTeslaT4
 ```
 
 `launch` reuses the saved Kaggle OAuth profile from
 `C:\Users\USER\.vscode\model_ablation\.kaggle_profiles\<account>\.kaggle\credentials.json`.
 It mounts those credentials into a temporary Kaggle home for each subprocess so
 the global login state is not changed and secrets are not written to manifests.
+Real training is strict by default: the launcher defaults to Kaggle's
+`NvidiaTeslaT4` accelerator because Kaggle's current default/P100 image can fail
+with modern PyTorch CUDA builds. If Kaggle still assigns an incompatible CUDA
+runtime, the generated script fails instead of falling back to CPU and producing
+misleading training-impact rows. Use CPU fallback only for explicit smoke/debug
+checks:
+
+```powershell
+python -m socbench kaggle launch Salesforce/wikitext kaggle_prepared/salesforce-wikitext --output-root kaggle_train --account holykeys --tokens 2048 --train-device cpu --allow-cpu-fallback
+```
+
 Each launch writes:
 
 ```text
@@ -295,29 +306,26 @@ The generated notebook is designed to write `train.log`, `train.err`,
 `loss_curve.json`, and `eval_results.json` under `/kaggle/working`, then copy
 compact result files to the output root for download/import.
 
-### Current launched batch
+### Smoke/proxy batch state
 
-On August 3, 2026, the first new 1M-token Kaggle smoke/proxy runs were launched,
-reached Kaggle `COMPLETE` status, downloaded result artifacts, and were imported
-into the local training leaderboard:
+On August 3, 2026, the first new Kaggle smoke/proxy runs reached Kaggle
+`COMPLETE` status, downloaded result artifacts, and were imported into the local
+training leaderboard:
 
 ```text
 Salesforce/wikitext                         holykeys/socbench-train-salesfoc13c
 HuggingFaceCode/stack-v3-train              alexcathe/socbench-train-huggingd774
 r0b0tlab/qwen3.8-max-distillation-50k       ippojoe/socbench-train-r0b0tlabed1
+allenai/c4                                  holyjow/socbench-train-allenai8f7b
+HuggingFaceFW/fineweb-edu                   hiolyjo/socbench-train-hugging6b25
+NousResearch/hermes-function-calling-v1     holykeyz10/socbench-train-nousres317a
 ```
 
-Use `kaggle kernels status <owner>/<slug>` with the matching profile credentials
-to poll them, then `kaggle kernels output <owner>/<slug> -p <output-dir> -o` to
-pull artifacts before running the importer. The imported smoke runs use the
-script-kernel path, force CPU on Kaggle's current P100 image, keep checkpoints
-under `/kaggle/temp`, and publish compact JSON/log artifacts under
-`/kaggle/working`.
-
-The smoke/proxy rows prove the launch-download-import path and are intentionally
-small. Full training-impact runs should use compatible GPU hardware or a
-P100-compatible PyTorch image, and only actual tokens reported by the generated
-artifacts should be imported.
+Those smoke kernels were then deleted to stop quota burn. Do not recreate them
+unless an explicit smoke/debug check is needed. The smoke/proxy rows prove the
+launch-download-import path and are intentionally small. Full training-impact
+runs should use compatible GPU hardware or a P100-compatible PyTorch image, and
+only actual tokens reported by the generated artifacts should be imported.
 
 ## Catalog Curation
 
