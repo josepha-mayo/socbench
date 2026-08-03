@@ -262,9 +262,9 @@ Services:
 
 These are not finished yet:
 
-- Full research-grade audit/decontamination is still incomplete. The recovered `audit`
-  package compiles and can run, but the current decontamination path is not the final
-  benchmark-overlap implementation described in `PLAN.md`.
+- Audit decontamination now has a local n-gram eval-bank index for `.json`, `.jsonl`,
+  `.txt`, and `.md` benchmark files, plus a bounded Hugging Face benchmark fallback.
+  Full MinHash/LSH scale-out and curated eval-bank coverage are still future work.
 - The full Kaggle upload/push/download orchestration still needs a production review.
   The notebook generator and poll helpers are tested; the end-to-end quota-aware
   training runner is not fully reconstructed.
