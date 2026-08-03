@@ -33,6 +33,7 @@ def generate_notebook(
     tokens: int = 1_000_000_000,
     output_dir: str = "/kaggle/working",
     dataset_owner: str | None = None,
+    kaggle_dataset_slug: str | None = None,
 ) -> dict:
     """Generate a Kaggle notebook (ipynb format) for training a dataset.
 
@@ -42,9 +43,10 @@ def generate_notebook(
     kernel_slug = kernel_slug_for(dataset_id)
     title = kernel_slug
 
-    # Kaggle mounts user datasets under /kaggle/input/datasets/<owner>/<dataset-slug>/
+    # Kaggle mounts user datasets under /kaggle/input/<dataset-slug>/.
     owner = dataset_owner or "<owner>"
-    dataset_mount_path = f"/kaggle/input/datasets/{owner}/{safe_id}"
+    dataset_slug = kaggle_dataset_slug or safe_id
+    dataset_mount_path = f"/kaggle/input/{dataset_slug}"
 
     # Generate training script content
     train_script = generate_train_script(
@@ -163,8 +165,8 @@ def generate_notebook(
         "is_private": False,
         "enable_gpu": True,
         "enable_internet": True,
-        "dataset_sources": [f"socbench/{safe_id}"],
-    }
+                "dataset_sources": [f"{owner}/{dataset_slug}"],
+            }
 
     return {"notebook": notebook, "kernel_metadata": kernel_metadata, "kernel_slug": kernel_slug}
 

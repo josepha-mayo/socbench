@@ -172,6 +172,49 @@ and preserves the combined score formula:
 combined_score = 0.9 * auto_score + 0.1 * training_score
 ```
 
+## Kaggle Training Workflow
+
+Socbench has a safe offline bundle step for new Kaggle runs. The bundle step does
+not push anything; it creates reviewable files for the prepared Kaggle dataset and
+training kernel.
+
+List configured Kaggle profiles without printing credentials:
+
+```powershell
+cd C:\Users\USER\.vscode\vibe\backend
+python -m socbench kaggle accounts
+```
+
+Prepare a dataset binary first:
+
+```powershell
+python -c "import asyncio; from socbench.training.data_prep import prepare_dataset_binary; asyncio.run(prepare_dataset_binary('Salesforce/wikitext', 'kaggle_prepared/salesforce-wikitext', max_samples=100000))"
+```
+
+Create the local Kaggle bundle:
+
+```powershell
+python -m socbench kaggle bundle Salesforce/wikitext kaggle_prepared/salesforce-wikitext --output-root kaggle_train --account holykeys
+```
+
+The command prints exact push commands like:
+
+```powershell
+$env:KAGGLE_CONFIG_DIR = "C:\Users\USER\.vscode\model_ablation\.kaggle_profiles\holykeys\.kaggle"
+kaggle datasets create -p "kaggle_train\salesforce-wikitext\data" --dir-mode zip
+kaggle kernels push -p "kaggle_train\salesforce-wikitext\kernel"
+```
+
+If the Kaggle dataset already exists, use `kaggle datasets version` instead of
+`kaggle datasets create`.
+
+Review the generated `data/` and `kernel/` directories before starting long GPU
+training. The notebook expects Kaggle to mount data at:
+
+```text
+/kaggle/input/<dataset-slug>/train.bin
+```
+
 ## Docker Compose
 
 ```powershell

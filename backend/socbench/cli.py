@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from pathlib import Path
 from typing import Optional
 
 import typer
@@ -27,6 +28,8 @@ app = typer.Typer(
     help="Socbench — Scientific dataset intelligence. 'The unexamined dataset is not worth training on.'",
     no_args_is_help=True,
 )
+kaggle_app = typer.Typer(help="Kaggle training bundle helpers.")
+app.add_typer(kaggle_app, name="kaggle")
 console = Console()
 
 
@@ -282,6 +285,78 @@ def leaderboard(
             console.print(table)
 
     asyncio.run(_run())
+
+
+@kaggle_app.command("accounts")
+def kaggle_accounts(
+    profiles_dir: Optional[str] = typer.Option(None, help="Kaggle profiles directory"),
+):
+    """List configured Kaggle accounts without printing credentials."""
+    from socbench.kaggle.accounts import DEFAULT_PROFILES_DIR, MultiAccountManager
+
+    manager = MultiAccountManager(profiles_dir or DEFAULT_PROFILES_DIR)
+    table = Table(title=f"Kaggle accounts ({len(manager.accounts)})")
+    table.add_column("Name", style="cyan")
+    table.add_column("Username")
+    table.add_column("Max kernels", justify="right")
+    table.add_column("Config dir", style="dim")
+    for account in manager.accounts:
+        table.add_row(
+            account.name,
+            account.username,
+            str(account.max_kernels),
+            account.config_dir,
+        )
+    console.print(table)
+    console.print(f"[bold]Nominal slots:[/bold] {manager.get_total_slots()}")
+
+
+@kaggle_app.command("bundle")
+def kaggle_bundle(
+    dataset_id: str = typer.Argument(..., help="Hugging Face dataset ID"),
+    prepared_data_dir: Path = typer.Argument(..., help="Directory containing train.bin"),
+    output_root: Path = typer.Option(Path("kaggle_train"), help="Bundle output directory"),
+    account: Optional[str] = typer.Option(None, help="Kaggle account name or username"),
+    tokens: int = typer.Option(1_000_000_000, help="Token budget for generated training script"),
+    binary_filename: str = typer.Option("train.bin", help="Prepared binary filename"),
+):
+    """Create a local Kaggle dataset+kernel bundle for a prepared training run."""
+    from socbench.kaggle.accounts import DEFAULT_PROFILES_DIR, MultiAccountManager
+    from socbench.kaggle.pipeline import create_training_bundle
+
+    manager = MultiAccountManager(DEFAULT_PROFILES_DIR)
+    selected = None
+    if account:
+        selected = next((a for a in manager.accounts if account in (a.name, a.username)), None)
+        if selected is None:
+            raise typer.BadParameter(f"Unknown Kaggle account: {account}")
+    else:
+        selected = manager.get_available_account()
+        if selected is None:
+            raise typer.BadParameter("No Kaggle accounts available")
+
+    bundle = create_training_bundle(
+        dataset_id=dataset_id,
+        prepared_data_dir=prepared_data_dir,
+        output_root=output_root,
+        kaggle_owner=selected.username,
+        tokens=tokens,
+        binary_filename=binary_filename,
+    )
+
+    console.print(Panel(f"[bold]{dataset_id}[/bold]\n{bundle.bundle_dir}", title="Kaggle Training Bundle"))
+    console.print(f"Dataset ref: [cyan]{bundle.kaggle_dataset_ref}[/cyan]")
+    console.print(f"Kernel slug: [cyan]{bundle.kernel_slug}[/cyan]")
+    console.print(f"Account: [cyan]{selected.name}[/cyan] ({selected.username})")
+    console.print("\n[bold]Review files:[/bold]")
+    console.print(f"  Data:   {bundle.data_dir}")
+    console.print(f"  Kernel: {bundle.kernel_dir}")
+    console.print("\n[bold]Push commands:[/bold]")
+    console.print(f'$env:KAGGLE_CONFIG_DIR = "{selected.config_dir}"')
+    console.print(f'kaggle datasets create -p "{bundle.data_dir}" --dir-mode zip')
+    console.print(f'kaggle kernels push -p "{bundle.kernel_dir}"')
+    console.print("\nIf the dataset already exists, use:")
+    console.print(f'kaggle datasets version -p "{bundle.data_dir}" -m "Update prepared Socbench data" --dir-mode zip')
 
 
 @app.command()

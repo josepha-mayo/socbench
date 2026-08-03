@@ -2,4 +2,4 @@
 
 from __future__ import annotations
 
-__all__ = ["accounts", "notebook", "queue"]
+__all__ = ["accounts", "notebook", "pipeline", "queue"]

@@ -50,9 +50,11 @@ def test_generate_notebook_returns_valid_json_and_expected_strings():
     assert "subprocess.run" in setup_source
     assert "subprocess.check_call" not in setup_source
 
-    # Data verification cell contains dataset path
+    # Data verification cell contains Kaggle's mounted dataset path.
     verify_source = "".join(notebook["cells"][2]["source"])
-    assert "/kaggle/input/datasets/" in verify_source
+    assert "/kaggle/input/user-my-dataset/" in verify_source
+
+    assert kernel_metadata["dataset_sources"] == ["<owner>/user-my-dataset"]
 
 
 def test_save_notebook_writes_files():
