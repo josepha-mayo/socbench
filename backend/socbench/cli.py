@@ -163,6 +163,54 @@ def score_command(
 
 
 @app.command()
+def audit(
+    dataset_id: str = typer.Argument(..., help="HuggingFace dataset ID"),
+    output_dir: Path = typer.Option(Path("audit_outputs"), help="Directory for the cleaned JSONL and summary"),
+    max_rows: int = typer.Option(100_000, min=1, help="Maximum source rows to inspect"),
+    output_size: Optional[int] = typer.Option(None, min=1, help="Optional cap for balanced accepted rows"),
+    text_key: Optional[str] = typer.Option(None, help="Text column to audit; auto-detected by default"),
+    eval_bank_dir: Optional[Path] = typer.Option(None, help="Local evaluation-bank directory; defaults to built-in benchmarks"),
+    min_tokens: int = typer.Option(32, min=1, help="Minimum token count per accepted row"),
+    max_tokens: int = typer.Option(8192, min=1, help="Maximum token count per accepted row"),
+):
+    """Run the full seven-stage cleaning and decontamination audit."""
+    from socbench.audit import audit_dataset
+
+    async def _run():
+        console.print(f"[bold]Auditing {dataset_id}...[/bold]")
+        result = await audit_dataset(
+            dataset_id,
+            output_dir=output_dir,
+            max_rows=max_rows,
+            output_size=output_size,
+            text_key=text_key,
+            eval_bank_dir=eval_bank_dir,
+            min_tokens=min_tokens,
+            max_tokens=max_tokens,
+        )
+        table = Table(title=f"Audit complete: {dataset_id}")
+        table.add_column("Outcome", style="bold")
+        table.add_column("Rows", justify="right")
+        for label, count in [
+            ("Accepted before balancing", result.accepted),
+            ("Final balanced output", result.final),
+            ("Rejected: license", result.rejected_license),
+            ("Rejected: language", result.rejected_language),
+            ("Rejected: syntax", result.rejected_syntax),
+            ("Rejected: eval contamination", result.rejected_eval_contamination),
+            ("Rejected: exact duplicates", result.rejected_exact_dup),
+            ("Rejected: near duplicates", result.rejected_near_dup),
+            ("Rejected: token length", result.rejected_token_length),
+        ]:
+            table.add_row(label, str(count))
+        console.print(table)
+        console.print(f"[green]Balanced data:[/green] {result.output_path}")
+        console.print(f"[green]Machine-readable summary:[/green] {result.summary_path}")
+
+    asyncio.run(_run())
+
+
+@app.command()
 def provenance(
     dataset_id: str = typer.Argument(..., help="HuggingFace dataset ID"),
 ):

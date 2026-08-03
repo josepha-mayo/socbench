@@ -59,7 +59,7 @@ python -c "import requests; data=requests.get('http://localhost:8000/api/trainin
 backend/
   socbench/
     api/              FastAPI app and routes
-    audit/            Dataset audit pipeline scaffolding
+    audit/            Seven-stage dataset cleaning and decontamination audit
     contamination/    N-gram contamination checker
     discovery/        Hugging Face scanner and qualifier
     evals/            Eval benchmark intelligence
@@ -179,6 +179,43 @@ Open a dataset page or score on demand through the frontend:
 
 ```text
 http://localhost:3000/datasets/Salesforce/wikitext
+```
+
+## Deep Dataset Audit
+
+Use `audit` when the objective is a trainable, cleaned dataset rather than a
+leaderboard score. It runs all seven audit stages and writes both the balanced
+JSONL output and an auditable JSON summary:
+
+1. license policy
+2. language detection
+3. code syntax validation when applicable
+4. evaluation-bank decontamination
+5. exact and near-duplicate removal
+6. token-length filtering
+7. seeded per-language water-filling rebalancing
+
+The default audit uses the built-in evaluation-bank benchmarks. Give it a local
+`--eval-bank-dir` to add or replace those checks with your own JSON/JSONL eval
+corpora.
+
+```powershell
+cd C:\Users\USER\.vscode\vibe\backend
+python -m socbench audit Salesforce/wikitext --output-dir audit_outputs/wikitext --max-rows 100000
+```
+
+For a bounded local verification pass:
+
+```powershell
+python -m socbench audit Salesforce/wikitext --output-dir audit_outputs/wikitext-smoke --max-rows 1000 --output-size 500
+```
+
+The command creates:
+
+```text
+audit_outputs/wikitext/
+  audit_balanced.jsonl
+  audit_summary.json
 ```
 
 ## Eval-Proof Export

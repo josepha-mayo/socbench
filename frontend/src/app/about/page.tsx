@@ -180,6 +180,19 @@ python -m socbench score Salesforce/wikitext --sample-size 1000`}</code>
           </pre>
         </div>
 
+        <h3 className="text-lg font-serif font-bold pt-4">Deep Dataset Audit</h3>
+        <p className="text-arxiv-gray">
+          When you need a cleaned training corpus rather than a leaderboard score,
+          the audit command runs license review, language and code validation,
+          evaluation-bank decontamination, exact and near-duplicate removal,
+          token filtering, and seeded language balancing. It writes a reusable JSONL
+          corpus plus a machine-readable rejection summary.
+        </p>
+        <pre className="overflow-x-auto rounded border border-arxiv-border bg-white p-3 text-xs font-mono text-arxiv-dark">
+          <code>{`cd C:\\Users\\USER\\.vscode\\vibe\\backend
+python -m socbench audit Salesforce/wikitext --output-dir audit_outputs/wikitext --max-rows 100000`}</code>
+        </pre>
+
         <h3 className="text-lg font-serif font-bold pt-4">Discovery Pipeline</h3>
         <p className="text-arxiv-gray">
           We scan HuggingFace for new and trending datasets daily. Only datasets above
