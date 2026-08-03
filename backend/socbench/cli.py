@@ -150,6 +150,15 @@ def assess(
     asyncio.run(_run())
 
 
+@app.command("score")
+def score_command(
+    dataset_id: str = typer.Argument(..., help="HuggingFace dataset ID"),
+    sample_size: int = typer.Option(10_000, help="Number of samples to analyze"),
+):
+    """Alias for assess: run full multi-dimension scoring on a dataset."""
+    assess(dataset_id=dataset_id, sample_size=sample_size)
+
+
 @app.command()
 def provenance(
     dataset_id: str = typer.Argument(..., help="HuggingFace dataset ID"),

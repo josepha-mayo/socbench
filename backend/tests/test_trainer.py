@@ -36,7 +36,9 @@ def test_generate_train_script_contains_required_markers(trainer_script):
     ]
     for marker in required:
         assert marker in trainer_script, marker
-    assert "block_size * 2 *" in trainer_script
+    assert "batch_size * block_size * gradient_accumulation_steps" in trainer_script
+    assert "tokens_per_iter =" in trainer_script
+    assert "actual_tokens_seen = iter_num * tokens_per_iter" in trainer_script
     assert "loss_curve=comparable_curve" in trainer_script
     assert "{str(TRAIN.compile)}" not in trainer_script
 

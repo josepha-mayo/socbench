@@ -28,8 +28,10 @@ DEFAULT_PROFILES_DIR = r"C:\Users\USER\.vscode\model_ablation\.kaggle_profiles"
 
 ACCOUNT_NAMES = [
     "alexcathe", "hiolyjo", "holyjow", "holykeys", "holykeyz10",
-    "ippojoe", "jjwhich", "josephayanda", "josephmayo", "josephmayok", "makanouchi",
+    "ippojoe", "jjwhich", "josephmayo", "josephmayok", "makanouchi",
 ]
+
+DISABLED_ACCOUNT_NAMES = {"josephayanda"}
 
 
 def load_accounts(profiles_dir: str = DEFAULT_PROFILES_DIR) -> list[KaggleAccount]:
@@ -38,6 +40,8 @@ def load_accounts(profiles_dir: str = DEFAULT_PROFILES_DIR) -> list[KaggleAccoun
     profiles_path = Path(profiles_dir)
 
     for name in ACCOUNT_NAMES:
+        if name in DISABLED_ACCOUNT_NAMES:
+            continue
         profile_dir = profiles_path / name
         cred_file = profile_dir / ".kaggle" / "credentials.json"
         kaggle_file = profile_dir / ".kaggle" / "kaggle.json"

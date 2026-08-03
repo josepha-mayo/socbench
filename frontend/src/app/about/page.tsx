@@ -138,11 +138,29 @@ export default function AboutPage() {
         <h3 className="text-lg font-serif font-bold pt-4">Training Impact (Stage 3)</h3>
         <p className="text-arxiv-gray">
           For top-tier datasets only. Train GPT-2 124M from scratch on each dataset
-          for 1B tokens. Measure loss curves, perplexity, and convergence.
-          Relative comparison across all runs. Research proves 125M models predict data
-          quality scaling for 3B models (Ankner et al., 2024). This stage earns its
-          compute &mdash; it runs only when the result answers a question nobody else can answer.
+          with a standardized token budget. Smoke/proxy runs validate the Kaggle
+          launch-download-import path; full runs measure loss curves, perplexity,
+          convergence, and relative quality. Research shows 125M proxy models can
+          predict data quality scaling for larger models (Ankner et al., 2024).
+          This stage earns its compute &mdash; it runs only when the result answers a
+          question nobody else can answer.
         </p>
+
+        <h3 className="text-lg font-serif font-bold pt-4">Score Any Dataset</h3>
+        <p className="text-arxiv-gray">
+          Socbench can score any public Hugging Face dataset ID from the command line
+          or API. The same scoring path powers on-demand dataset pages and public
+          evaluation requests.
+        </p>
+        <div className="space-y-2">
+          <pre className="overflow-x-auto rounded border border-arxiv-border bg-white p-3 text-xs font-mono text-arxiv-dark">
+            <code>{`cd C:\\Users\\USER\\.vscode\\vibe\\backend
+python -m socbench score Salesforce/wikitext --sample-size 1000`}</code>
+          </pre>
+          <pre className="overflow-x-auto rounded border border-arxiv-border bg-white p-3 text-xs font-mono text-arxiv-dark">
+            <code>{`Invoke-RestMethod -Method Post "http://localhost:8000/api/datasets/Salesforce/wikitext/score?sample_size=1000"`}</code>
+          </pre>
+        </div>
 
         <h3 className="text-lg font-serif font-bold pt-4">Discovery Pipeline</h3>
         <p className="text-arxiv-gray">

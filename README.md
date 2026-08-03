@@ -30,15 +30,19 @@ As of the latest recovery pass:
 
 - `datasets`: 55
 - `leaderboard`: 55
-- `training_runs`: 13
+- `training_runs`: 16
 - `/api/stats`: returns HTTP 200
-- `/api/training-leaderboard?limit=20`: returns 13 trained rows plus pending candidates
+- `/api/training-leaderboard?limit=20`: returns 16 trained rows plus pending candidates
 - `/training`: renders the recovered training leaderboard in the frontend
 
 The recovered trained rows include `tatsu-lab/alpaca`, `EdinburghNLP/xsum`,
 `m-a-p/COIG-CQIA`, `garage-bAInd/Open-Platypus`, `yahma/alpaca-cleaned`,
 `teknium/OpenHermes-2.5`, `WizardLMTeam/WizardLM_evol_instruct_70k`,
 `LDJnr/Capybara`, `HuggingFaceH4/ultrachat_200k`, and `OpenAssistant/oasst1`.
+The Kaggle smoke/proxy imports also include `Salesforce/wikitext`,
+`HuggingFaceCode/stack-v3-train`, `r0b0tlab/qwen3.8-max-distillation-50k`,
+`allenai/c4`, `HuggingFaceFW/fineweb-edu`, and
+`NousResearch/hermes-function-calling-v1`.
 
 Pending rows are dynamic: the API pulls the current top Hugging Face trending and
 most-downloaded datasets, removes anything already trained, and marks the rest as
@@ -146,6 +150,37 @@ python -c "import requests; print(len(requests.get('http://localhost:8000/api/tr
 python -c "import requests; print(len(requests.get('http://localhost:3000/api/training-leaderboard?limit=20', timeout=20).json()))"
 ```
 
+## Scoring A Dataset
+
+Anyone can run a Socbench score for a Hugging Face dataset ID from the CLI or API.
+The command fetches live metadata/samples, classifies the dataset, computes the
+multi-dimension score, checks contamination, and prints the result.
+
+CLI:
+
+```powershell
+cd C:\Users\USER\.vscode\vibe\backend
+python -m socbench score Salesforce/wikitext --sample-size 1000
+```
+
+Equivalent legacy command:
+
+```powershell
+python -m socbench assess Salesforce/wikitext --sample-size 1000
+```
+
+Live API:
+
+```powershell
+Invoke-RestMethod -Method Post "http://localhost:8000/api/datasets/Salesforce/wikitext/score?sample_size=1000"
+```
+
+Open a dataset page or score on demand through the frontend:
+
+```text
+http://localhost:3000/datasets/Salesforce/wikitext
+```
+
 ## Eval-Proof Export
 
 Generate reproducible proof JSON files for every dataset currently in the database:
@@ -205,6 +240,9 @@ List configured Kaggle profiles without printing credentials:
 cd C:\Users\USER\.vscode\vibe\backend
 python -m socbench kaggle accounts
 ```
+
+The `josephayanda` Kaggle profile is intentionally disabled and must not be used
+for Socbench launches.
 
 Prepare a dataset binary first:
 
@@ -275,6 +313,11 @@ pull artifacts before running the importer. The imported smoke runs use the
 script-kernel path, force CPU on Kaggle's current P100 image, keep checkpoints
 under `/kaggle/temp`, and publish compact JSON/log artifacts under
 `/kaggle/working`.
+
+The smoke/proxy rows prove the launch-download-import path and are intentionally
+small. Full training-impact runs should use compatible GPU hardware or a
+P100-compatible PyTorch image, and only actual tokens reported by the generated
+artifacts should be imported.
 
 ## Catalog Curation
 

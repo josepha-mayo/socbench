@@ -75,7 +75,7 @@ dataset_path = "{dataset_bin_path}"
 out_dir = "{output_dir}"
 eval_interval = {TRAIN.eval_interval}
 log_interval = {TRAIN.log_interval}
-eval_iters = min({TRAIN.eval_iters}, max(1, {tokens} // ({TRAIN.batch_size} * {MODEL.block_size} * 2 * {TRAIN.gradient_accumulation_steps})))
+eval_iters = {TRAIN.eval_iters}
 eval_only = False
 always_save_checkpoint = True
 init_from = "scratch"
@@ -91,7 +91,7 @@ bias = {MODEL.bias}
 
 # Optimizer
 learning_rate = {TRAIN.learning_rate}
-max_iters = max(1, {tokens} // ({TRAIN.batch_size} * block_size * 2 * {TRAIN.gradient_accumulation_steps}))
+max_iters = 1
 weight_decay = {TRAIN.weight_decay}
 beta1 = {TRAIN.betas[0]}
 beta2 = {TRAIN.betas[1]}
@@ -99,7 +99,7 @@ grad_clip = {TRAIN.grad_clip}
 
 # Schedule
 tokens = {tokens}
-warmup_iters = max(1, {TRAIN.warmup_tokens} // ({TRAIN.batch_size} * block_size * 2 * {TRAIN.gradient_accumulation_steps}))
+warmup_iters = 1
 lr_decay_iters = max_iters
 min_lr = {TRAIN.lr_decay_to}
 
@@ -316,6 +316,11 @@ batch_size = {TRAIN.batch_size}
 if device_type == "cpu":
     batch_size = 1
     gradient_accumulation_steps = 1
+tokens_per_iter = batch_size * block_size * gradient_accumulation_steps * (ddp_world_size if ddp else 1)
+max_iters = max(1, tokens // tokens_per_iter)
+eval_iters = min(eval_iters, max(1, max_iters))
+warmup_iters = max(1, min(max_iters, {TRAIN.warmup_tokens} // tokens_per_iter))
+lr_decay_iters = max_iters
 model_args = dict(n_layer=n_layer, n_head=n_head, n_embd=n_embd, block_size=block_size, vocab_size=vocab_size, dropout=dropout, bias=bias)
 config = GPTConfig(**model_args)
 model = GPT(config)
@@ -359,6 +364,7 @@ if master_process:
     print(f"Starting training: {{max_iters}} iterations, {{tokens}} tokens")
     print(f"Dataset: {{dataset_path}}")
     print(f"Effective batch size: {{batch_size * gradient_accumulation_steps * (2 if ddp else 1)}}")
+    print(f"Tokens per iteration: {{tokens_per_iter}}")
 
 while iter_num < max_iters:
     lr = get_lr(iter_num)
@@ -422,6 +428,7 @@ while iter_num < max_iters:
 
 # Save final
 if master_process:
+    actual_tokens_seen = iter_num * tokens_per_iter
     checkpoint = {{
         "model": raw_model.state_dict(),
         "optimizer": optimizer.state_dict(),
@@ -434,10 +441,11 @@ if master_process:
     torch.save(checkpoint, os.path.join(out_dir, "ckpt_final.pt"))
 
     val_loss = losses_log[-1] if losses_log else best_val_loss
-    save_loss_curve(losses_log, best_val_loss, iter_num, tokens, out_dir, loss_steps)
+    save_loss_curve(losses_log, best_val_loss, iter_num, actual_tokens_seen, out_dir, loss_steps)
     save_eval_results(out_dir, best_val_loss, val_loss)
 
     print(f"Training complete. Best val loss: {{best_val_loss:.4f}}")
+    print(f"Actual tokens seen: {{actual_tokens_seen}}")
     print(f"Loss curve saved to {{out_dir}}/loss_curve.json")
     print(f"Eval results saved to {{out_dir}}/eval_results.json")
 
