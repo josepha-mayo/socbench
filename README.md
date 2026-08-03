@@ -146,6 +146,27 @@ python -c "import requests; print(len(requests.get('http://localhost:8000/api/tr
 python -c "import requests; print(len(requests.get('http://localhost:3000/api/training-leaderboard?limit=20', timeout=20).json()))"
 ```
 
+## Eval-Proof Export
+
+Generate reproducible proof JSON files for every dataset currently in the database:
+
+```powershell
+cd C:\Users\USER\.vscode\vibe\backend
+python -m socbench export-proofs --output-dir ..\eval-proof
+```
+
+This writes:
+
+```text
+eval-proof/
+  manifest.json
+  <org>/<dataset>/dataset.json
+```
+
+Each `dataset.json` contains the dataset metadata, leaderboard dimensions,
+individual scorer details, contamination rows, and latest training-run provenance
+when available. The export directory is local runtime output and is ignored by Git.
+
 ## Training Result Recovery
 
 Historical Kaggle training artifacts are kept under `kaggle_socbench/results*`.

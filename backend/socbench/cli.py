@@ -287,6 +287,25 @@ def leaderboard(
     asyncio.run(_run())
 
 
+@app.command("export-proofs")
+def export_proofs(
+    output_dir: Path = typer.Option(Path("../eval-proof"), help="Proof export directory"),
+    limit: Optional[int] = typer.Option(None, help="Limit number of datasets"),
+):
+    """Export dataset proof JSON files from the local database."""
+    from socbench.eval_proof import export_eval_proofs
+
+    async def _run():
+        manifest = await export_eval_proofs(output_dir=output_dir, limit=limit)
+        console.print(f"[green]Exported {manifest['count']} proof files[/green]")
+        console.print(f"Manifest: {Path(output_dir) / 'manifest.json'}")
+        from socbench.db import engine
+
+        await engine.dispose()
+
+    asyncio.run(_run())
+
+
 @kaggle_app.command("accounts")
 def kaggle_accounts(
     profiles_dir: Optional[str] = typer.Option(None, help="Kaggle profiles directory"),
