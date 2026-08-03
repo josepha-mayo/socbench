@@ -109,7 +109,8 @@ allow_cpu_fallback = os.environ.get("SOCBENCH_ALLOW_CPU_FALLBACK", "0").lower() 
 if device not in {"cuda", "cpu"}:
     raise RuntimeError(f"Unsupported SOCBENCH_TRAIN_DEVICE={{device!r}}; expected 'cuda' or 'cpu'")
 dtype = "float16" if device == "cuda" else "float32"
-compile = {TRAIN.compile} and device == "cuda"
+compile_env = os.environ.get("SOCBENCH_TRAIN_COMPILE", "1").lower() in {"1", "true", "yes"}
+compile = {TRAIN.compile} and compile_env and device == "cuda"
 if device == "cuda":
     try:
         assert torch.cuda.is_available()
@@ -131,6 +132,9 @@ if device == "cuda":
 # ── DDP Setup ───────────────────────────────────────────────────────────────
 
 ddp = int(os.environ.get("RANK", -1)) != -1
+gradient_accumulation_steps = int(
+    os.environ.get("SOCBENCH_GRADIENT_ACCUMULATION_STEPS", "{TRAIN.gradient_accumulation_steps}")
+)
 if ddp:
     os.environ["NCCL_P2P_DISABLE"] = "1"
     try:
@@ -145,12 +149,11 @@ if ddp:
     torch.cuda.set_device(device)
     master_process = ddp_rank == 0
     seed_offset = ddp_rank
-    assert {TRAIN.gradient_accumulation_steps} % ddp_world_size == 0
-    gradient_accumulation_steps = {TRAIN.gradient_accumulation_steps} // ddp_world_size
+    assert gradient_accumulation_steps % ddp_world_size == 0
+    gradient_accumulation_steps = gradient_accumulation_steps // ddp_world_size
 else:
     master_process = True
     seed_offset = 0
-    gradient_accumulation_steps = {TRAIN.gradient_accumulation_steps}
 
 if master_process:
     os.makedirs(out_dir, exist_ok=True)
@@ -320,7 +323,7 @@ class GPT(torch.nn.Module):
         extra_args = {{"fused": True}} if use_fused else {{}}
         return torch.optim.AdamW(optim_groups, lr=learning_rate, betas=betas, **extra_args)
 
-batch_size = {TRAIN.batch_size}
+batch_size = int(os.environ.get("SOCBENCH_TRAIN_BATCH_SIZE", "{TRAIN.batch_size}"))
 if device_type == "cpu":
     batch_size = 1
     gradient_accumulation_steps = 1

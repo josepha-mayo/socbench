@@ -45,6 +45,9 @@ def test_generate_notebook_returns_valid_json_and_expected_strings():
     assert "TOKENIZERS_PARALLELISM" in source
     assert "SOCBENCH_TRAIN_DEVICE'] = \"cuda\"" in source
     assert "SOCBENCH_ALLOW_CPU_FALLBACK'] = '0'" in source
+    assert "SOCBENCH_TRAIN_BATCH_SIZE'] = '8'" in source
+    assert "SOCBENCH_GRADIENT_ACCUMULATION_STEPS'] = '64'" in source
+    assert "SOCBENCH_TRAIN_COMPILE'] = '0'" in source
     assert "RuntimeError" in source
     compile(source, "<generated-notebook-cell>", "exec")
 
@@ -94,6 +97,10 @@ def test_generate_kernel_script_compiles_and_uses_script_metadata():
     assert "SOCBENCH_RESULT_JSON=" in result["source"]
     assert "os.environ['SOCBENCH_TRAIN_DEVICE'] = \"cuda\"" in result["source"]
     assert "os.environ['SOCBENCH_ALLOW_CPU_FALLBACK'] = '0'" in result["source"]
+    assert "os.environ['SOCBENCH_TRAIN_BATCH_SIZE'] = '8'" in result["source"]
+    assert "os.environ['SOCBENCH_GRADIENT_ACCUMULATION_STEPS'] = '64'" in result["source"]
+    assert "os.environ['SOCBENCH_TRAIN_COMPILE'] = '0'" in result["source"]
+    assert "PYTORCH_CUDA_ALLOC_CONF" in result["source"]
     assert "'torch'," not in result["source"]
     assert "/kaggle/input/datasets/holykeys/user-my-dataset/train.bin" in result["source"]
 
@@ -104,10 +111,14 @@ def test_generate_kernel_script_can_opt_into_cpu_smoke_mode():
         dataset_owner="holykeys",
         train_device="cpu",
         allow_cpu_fallback=True,
+        train_batch_size=1,
+        gradient_accumulation_steps=1,
     )
 
     assert "os.environ['SOCBENCH_TRAIN_DEVICE'] = \"cpu\"" in result["source"]
     assert "os.environ['SOCBENCH_ALLOW_CPU_FALLBACK'] = '1'" in result["source"]
+    assert "os.environ['SOCBENCH_TRAIN_BATCH_SIZE'] = '1'" in result["source"]
+    assert "os.environ['SOCBENCH_GRADIENT_ACCUMULATION_STEPS'] = '1'" in result["source"]
 
 
 def test_kernel_slug_for_empty_prefix_fallback():

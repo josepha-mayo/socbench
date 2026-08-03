@@ -253,7 +253,7 @@ python -c "import asyncio; from socbench.training.data_prep import prepare_datas
 Create the local Kaggle bundle for a real GPU run:
 
 ```powershell
-python -m socbench kaggle bundle Salesforce/wikitext kaggle_prepared/salesforce-wikitext --output-root kaggle_train --account holykeys --tokens 1000000000 --train-device cuda --accelerator NvidiaTeslaT4
+python -m socbench kaggle bundle Salesforce/wikitext kaggle_prepared/salesforce-wikitext --output-root kaggle_train --account holykeys --tokens 1000000000 --train-device cuda --accelerator NvidiaTeslaT4 --train-batch-size 8 --gradient-accumulation-steps 64
 ```
 
 The command prints exact push commands like:
@@ -271,7 +271,7 @@ To upload/version the prepared Kaggle dataset and push the GPU kernel in one
 step, use:
 
 ```powershell
-python -m socbench kaggle launch Salesforce/wikitext kaggle_prepared/salesforce-wikitext --output-root kaggle_train --account holykeys --tokens 1000000000 --train-device cuda --accelerator NvidiaTeslaT4
+python -m socbench kaggle launch Salesforce/wikitext kaggle_prepared/salesforce-wikitext --output-root kaggle_train --account holykeys --tokens 1000000000 --train-device cuda --accelerator NvidiaTeslaT4 --train-batch-size 8 --gradient-accumulation-steps 64
 ```
 
 `launch` reuses the saved Kaggle OAuth profile from
@@ -282,8 +282,11 @@ Real training is strict by default: the launcher defaults to Kaggle's
 `NvidiaTeslaT4` accelerator because Kaggle's current default/P100 image can fail
 with modern PyTorch CUDA builds. If Kaggle still assigns an incompatible CUDA
 runtime, the generated script fails instead of falling back to CPU and producing
-misleading training-impact rows. Use CPU fallback only for explicit smoke/debug
-checks:
+misleading training-impact rows. The generated Kaggle kernel also defaults to a
+T4-safe memory profile: `--train-batch-size 8`, `--gradient-accumulation-steps
+64`, `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`, and `torch.compile`
+disabled unless `--train-compile` is explicitly passed. Use CPU fallback only for
+explicit smoke/debug checks:
 
 ```powershell
 python -m socbench kaggle launch Salesforce/wikitext kaggle_prepared/salesforce-wikitext --output-root kaggle_train --account holykeys --tokens 2048 --train-device cpu --allow-cpu-fallback

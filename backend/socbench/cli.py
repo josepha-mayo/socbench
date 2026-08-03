@@ -35,6 +35,8 @@ kaggle_app = typer.Typer(help="Kaggle training bundle helpers.")
 app.add_typer(kaggle_app, name="kaggle")
 console = Console()
 DEFAULT_KAGGLE_ACCELERATOR = "NvidiaTeslaT4"
+DEFAULT_KAGGLE_TRAIN_BATCH_SIZE = 8
+DEFAULT_KAGGLE_GRADIENT_ACCUMULATION_STEPS = 64
 
 
 @app.command()
@@ -357,6 +359,19 @@ def kaggle_bundle(
         "--allow-cpu-fallback",
         help="Allow CUDA kernels to fall back to CPU. Use only for smoke/debug runs.",
     ),
+    train_batch_size: int = typer.Option(
+        DEFAULT_KAGGLE_TRAIN_BATCH_SIZE,
+        help="Per-device training micro-batch size baked into the kernel.",
+    ),
+    gradient_accumulation_steps: int = typer.Option(
+        DEFAULT_KAGGLE_GRADIENT_ACCUMULATION_STEPS,
+        help="Gradient accumulation steps baked into the kernel.",
+    ),
+    train_compile: bool = typer.Option(
+        False,
+        "--train-compile",
+        help="Enable torch.compile inside the Kaggle kernel.",
+    ),
     accelerator: Optional[str] = typer.Option(
         DEFAULT_KAGGLE_ACCELERATOR,
         help="Kaggle accelerator string shown in push command",
@@ -386,6 +401,9 @@ def kaggle_bundle(
         binary_filename=binary_filename,
         train_device=train_device,
         allow_cpu_fallback=allow_cpu_fallback,
+        train_batch_size=train_batch_size,
+        gradient_accumulation_steps=gradient_accumulation_steps,
+        train_compile=train_compile,
     )
 
     console.print(Panel(f"[bold]{dataset_id}[/bold]\n{bundle.bundle_dir}", title="Kaggle Training Bundle"))
@@ -394,6 +412,8 @@ def kaggle_bundle(
     console.print(f"Account: [cyan]{selected.name}[/cyan] ({selected.username})")
     console.print(f"Train device: [cyan]{bundle.train_device}[/cyan]")
     console.print(f"CPU fallback: [cyan]{bundle.allow_cpu_fallback}[/cyan]")
+    console.print(f"Batch/grad accumulation: [cyan]{bundle.train_batch_size} x {bundle.gradient_accumulation_steps}[/cyan]")
+    console.print(f"torch.compile: [cyan]{bundle.train_compile}[/cyan]")
     console.print("\n[bold]Review files:[/bold]")
     console.print(f"  Data:   {bundle.data_dir}")
     console.print(f"  Kernel: {bundle.kernel_dir}")
@@ -421,6 +441,19 @@ def kaggle_launch(
         False,
         "--allow-cpu-fallback",
         help="Allow CUDA kernels to fall back to CPU. Use only for smoke/debug runs.",
+    ),
+    train_batch_size: int = typer.Option(
+        DEFAULT_KAGGLE_TRAIN_BATCH_SIZE,
+        help="Per-device training micro-batch size baked into the kernel.",
+    ),
+    gradient_accumulation_steps: int = typer.Option(
+        DEFAULT_KAGGLE_GRADIENT_ACCUMULATION_STEPS,
+        help="Gradient accumulation steps baked into the kernel.",
+    ),
+    train_compile: bool = typer.Option(
+        False,
+        "--train-compile",
+        help="Enable torch.compile inside the Kaggle kernel.",
     ),
     accelerator: Optional[str] = typer.Option(
         DEFAULT_KAGGLE_ACCELERATOR,
@@ -451,6 +484,9 @@ def kaggle_launch(
         binary_filename=binary_filename,
         train_device=train_device,
         allow_cpu_fallback=allow_cpu_fallback,
+        train_batch_size=train_batch_size,
+        gradient_accumulation_steps=gradient_accumulation_steps,
+        train_compile=train_compile,
     )
     try:
         result = push_training_bundle(
@@ -470,6 +506,8 @@ def kaggle_launch(
     console.print(f"Kernel: [cyan]{bundle.kaggle_owner}/{bundle.kernel_slug}[/cyan]")
     console.print(f"Train device: [cyan]{bundle.train_device}[/cyan]")
     console.print(f"CPU fallback: [cyan]{bundle.allow_cpu_fallback}[/cyan]")
+    console.print(f"Batch/grad accumulation: [cyan]{bundle.train_batch_size} x {bundle.gradient_accumulation_steps}[/cyan]")
+    console.print(f"torch.compile: [cyan]{bundle.train_compile}[/cyan]")
     console.print(f"Accelerator: [cyan]{accelerator or 'metadata default'}[/cyan]")
     console.print(f"Manifest: [cyan]{result.manifest_path}[/cyan]")
 

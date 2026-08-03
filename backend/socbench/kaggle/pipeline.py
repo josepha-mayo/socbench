@@ -33,6 +33,9 @@ class KaggleTrainingBundle:
     kernel_slug: str
     train_device: str
     allow_cpu_fallback: bool
+    train_batch_size: int
+    gradient_accumulation_steps: int
+    train_compile: bool
     bundle_dir: Path
     data_dir: Path
     kernel_dir: Path
@@ -87,6 +90,9 @@ def create_training_bundle(
     license_name: str = DEFAULT_LICENSE,
     train_device: str = "cuda",
     allow_cpu_fallback: bool = False,
+    train_batch_size: int = 8,
+    gradient_accumulation_steps: int = 64,
+    train_compile: bool = False,
 ) -> KaggleTrainingBundle:
     """Create a local Kaggle dataset+kernel bundle for one training run."""
     train_device = train_device.lower()
@@ -131,6 +137,9 @@ def create_training_bundle(
         kaggle_dataset_slug=dataset_slug,
         train_device=train_device,
         allow_cpu_fallback=allow_cpu_fallback,
+        train_batch_size=train_batch_size,
+        gradient_accumulation_steps=gradient_accumulation_steps,
+        train_compile=train_compile,
     )
 
     return KaggleTrainingBundle(
@@ -141,6 +150,9 @@ def create_training_bundle(
         kernel_slug=kernel_result["slug"],
         train_device=train_device,
         allow_cpu_fallback=allow_cpu_fallback,
+        train_batch_size=train_batch_size,
+        gradient_accumulation_steps=gradient_accumulation_steps,
+        train_compile=train_compile,
         bundle_dir=bundle_dir,
         data_dir=data_dir,
         kernel_dir=kernel_dir,
@@ -248,6 +260,9 @@ def push_training_bundle(
         "kernel_slug": bundle.kernel_slug,
         "train_device": bundle.train_device,
         "allow_cpu_fallback": bundle.allow_cpu_fallback,
+        "train_batch_size": bundle.train_batch_size,
+        "gradient_accumulation_steps": bundle.gradient_accumulation_steps,
+        "train_compile": bundle.train_compile,
         "accelerator": accelerator,
         "dataset_action": dataset_action,
         "bundle_dir": str(bundle.bundle_dir),

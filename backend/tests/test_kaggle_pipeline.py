@@ -43,6 +43,9 @@ def test_create_training_bundle_writes_data_and_kernel_files(tmp_path: Path):
     assert bundle.kaggle_dataset_ref == "holykeys/org-my-dataset"
     assert bundle.train_device == "cuda"
     assert bundle.allow_cpu_fallback is False
+    assert bundle.train_batch_size == 8
+    assert bundle.gradient_accumulation_steps == 64
+    assert bundle.train_compile is False
     assert bundle.train_bin.exists()
     assert bundle.train_bin.read_bytes() == b"\x01\x00\x02\x00"
 
@@ -61,6 +64,9 @@ def test_create_training_bundle_writes_data_and_kernel_files(tmp_path: Path):
     assert "/kaggle/input/org-my-dataset/train.bin" in kernel_source
     assert "os.environ['SOCBENCH_TRAIN_DEVICE'] = \"cuda\"" in kernel_source
     assert "os.environ['SOCBENCH_ALLOW_CPU_FALLBACK'] = '0'" in kernel_source
+    assert "os.environ['SOCBENCH_TRAIN_BATCH_SIZE'] = '8'" in kernel_source
+    assert "os.environ['SOCBENCH_GRADIENT_ACCUMULATION_STEPS'] = '64'" in kernel_source
+    assert "os.environ['SOCBENCH_TRAIN_COMPILE'] = '0'" in kernel_source
 
 
 def test_push_training_bundle_versions_existing_dataset(tmp_path: Path, monkeypatch):
@@ -103,4 +109,7 @@ def test_push_training_bundle_versions_existing_dataset(tmp_path: Path, monkeypa
     assert manifest["kernel_id"] == "holykeys/socbench-train-org-my-b7e6"
     assert manifest["train_device"] == "cuda"
     assert manifest["allow_cpu_fallback"] is False
+    assert manifest["train_batch_size"] == 8
+    assert manifest["gradient_accumulation_steps"] == 64
+    assert manifest["train_compile"] is False
     assert manifest["accelerator"] == "NvidiaTeslaT4"
