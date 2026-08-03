@@ -44,6 +44,7 @@ def test_generate_notebook_returns_valid_json_and_expected_strings():
     assert "NCCL_P2P_DISABLE" in source
     assert "TOKENIZERS_PARALLELISM" in source
     assert "RuntimeError" in source
+    compile(source, "<generated-notebook-cell>", "exec")
 
     # Setup cell uses subprocess.run instead of check_call
     setup_source = "".join(notebook["cells"][1]["source"])
@@ -55,6 +56,14 @@ def test_generate_notebook_returns_valid_json_and_expected_strings():
     assert "/kaggle/input/user-my-dataset/" in verify_source
 
     assert kernel_metadata["dataset_sources"] == ["<owner>/user-my-dataset"]
+
+
+def test_generate_notebook_uses_selected_kaggle_owner_for_kernel_id():
+    result = generate_notebook("user/my-dataset", dataset_owner="holykeys")
+    kernel_metadata = result["kernel_metadata"]
+
+    assert kernel_metadata["id"] == f"holykeys/{result['kernel_slug']}"
+    assert kernel_metadata["dataset_sources"] == ["holykeys/user-my-dataset"]
 
 
 def test_save_notebook_writes_files():

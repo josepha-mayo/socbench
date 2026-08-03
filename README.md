@@ -229,12 +229,78 @@ kaggle kernels push -p "kaggle_train\salesforce-wikitext\kernel"
 If the Kaggle dataset already exists, use `kaggle datasets version` instead of
 `kaggle datasets create`.
 
+To upload/version the prepared Kaggle dataset and push the GPU kernel in one
+step, use:
+
+```powershell
+python -m socbench kaggle launch Salesforce/wikitext kaggle_prepared/salesforce-wikitext --output-root kaggle_train --account holykeys --tokens 5000000
+```
+
+`launch` reuses the saved Kaggle OAuth profile from
+`C:\Users\USER\.vscode\model_ablation\.kaggle_profiles\<account>\.kaggle\credentials.json`.
+It mounts those credentials into a temporary Kaggle home for each subprocess so
+the global login state is not changed and secrets are not written to manifests.
+Each launch writes:
+
+```text
+backend/kaggle_train/<dataset-slug>/launch-manifest.json
+```
+
 Review the generated `data/` and `kernel/` directories before starting long GPU
 training. The notebook expects Kaggle to mount data at:
 
 ```text
 /kaggle/input/<dataset-slug>/train.bin
 ```
+
+The generated notebook is designed to write `train.log`, `train.err`,
+`loss_curve.json`, and `eval_results.json` under `/kaggle/working`, then copy
+compact result files to the output root for download/import.
+
+### Current launched batch
+
+On August 3, 2026, the first new 5M-token Kaggle proxy runs were launched and
+reached Kaggle `COMPLETE` status:
+
+```text
+Salesforce/wikitext                         holykeys/socbench-train-salesfoc13c
+HuggingFaceCode/stack-v3-train              alexcathe/socbench-train-huggingd774
+r0b0tlab/qwen3.8-max-distillation-50k       ippojoe/socbench-train-r0b0tlabed1
+```
+
+Use `kaggle kernels status <owner>/<slug>` with the matching profile credentials
+to poll them, then `kaggle kernels output <owner>/<slug> -p <output-dir> -o` to
+pull artifacts before running the importer. At the time of this checkpoint, the
+Kaggle output API returned only kernel logs for those completed versions, so the
+local `training_runs` table still contains the 10 recovered runs until result
+artifacts are available.
+
+## Catalog Curation
+
+The canonical seed catalog is intentionally training-data first. Trained rows are
+protected when curating the live SQLite database. The August 3, 2026 cleanup
+dropped five untrained low-signal rows from the local runtime catalog:
+
+```text
+HuggingFaceH4/llava-instruct-mix-vsft
+LLM-LAT/harmful-dataset
+Skywork/Skywork-Reward-Preference-80K-v0.2
+jondurbin/airoboros-2.2.1
+princeton-nlp/llama3-ultrafeedback-armorm
+```
+
+They were replaced with stronger live candidates:
+
+```text
+allenai/c4
+HuggingFaceCode/stack-v3-train
+Qyrou/reasoning-corpus-4K-5M-v1
+XYZAILab/XYZ-Aquila-SFT
+r0b0tlab/qwen3.8-max-distillation-50k
+```
+
+Before live catalog mutation, back up `backend/socbench.db`; the cleanup created
+`backend/socbench.before_catalog_swap_20260803T103614Z.db`.
 
 ## Docker Compose
 
@@ -265,15 +331,17 @@ These are not finished yet:
 - Audit decontamination now has a local n-gram eval-bank index for `.json`, `.jsonl`,
   `.txt`, and `.md` benchmark files, plus a bounded Hugging Face benchmark fallback.
   Full MinHash/LSH scale-out and curated eval-bank coverage are still future work.
-- The full Kaggle upload/push/download orchestration still needs a production review.
-  The notebook generator and poll helpers are tested; the end-to-end quota-aware
-  training runner is not fully reconstructed.
-- Eval-proof export is not complete for all scored datasets.
+- Kaggle bundle creation and launch orchestration are implemented and tested, including
+  OAuth profile isolation, dataset create/version fallback, kernel push, and launch
+  manifests. Output collection still needs a hardened importer path for newly launched
+  notebooks across Kaggle CLI versions.
+- Eval-proof export exists for scored datasets, but proofs should be regenerated after
+  every catalog curation/training import batch.
 - `teknium/OpenHermes-2.5` and `LDJnr/Capybara` have real recovered training scores,
   but their automated scoring rows were restored minimally because Hugging Face sample
   fetching failed during recovery.
 
-So: the restored training leaderboard is real and displaying. The broader product is
-cleaner and runnable, but it is not honest to say everything except training is done.
-The main remaining non-training work is production-grade audit/decontamination and
-complete eval-proof regeneration.
+So: the restored training leaderboard is real and displaying, new Kaggle training
+runs can be launched from the repo, and the local catalog has been curated. The
+remaining work is mostly operational hardening around post-run artifact import,
+proof regeneration after each batch, and larger-scale decontamination coverage.

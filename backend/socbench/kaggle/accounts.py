@@ -16,6 +16,8 @@ class KaggleAccount:
     name: str
     config_dir: str
     username: str
+    credentials_file: Optional[str] = None
+    access_token: Optional[str] = None
     active_kernels: int = 0
     max_kernels: int = 2
     last_used: Optional[float] = None
@@ -54,6 +56,8 @@ def load_accounts(profiles_dir: str = DEFAULT_PROFILES_DIR) -> list[KaggleAccoun
                     name=name,
                     config_dir=str(profile_dir / ".kaggle"),
                     username=username,
+                    credentials_file=str(config_file),
+                    access_token=creds.get("access_token"),
                 )
             )
         except (json.JSONDecodeError, KeyError):

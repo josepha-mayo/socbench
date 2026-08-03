@@ -45,6 +45,7 @@ def generate_notebook(
 
     # Kaggle mounts user datasets under /kaggle/input/<dataset-slug>/.
     owner = dataset_owner or "<owner>"
+    kernel_owner = dataset_owner or "socbench"
     dataset_slug = kaggle_dataset_slug or safe_id
     dataset_mount_path = f"/kaggle/input/{dataset_slug}"
 
@@ -55,9 +56,12 @@ def generate_notebook(
         tokens=tokens,
     )
 
+    train_script_literal = json.dumps(train_script)
+
     notebook = {
         "cells": [
             {
+                "id": "socbench-title",
                 "cell_type": "markdown",
                 "metadata": {},
                 "source": [
@@ -66,6 +70,7 @@ def generate_notebook(
                 ],
             },
             {
+                "id": "socbench-setup",
                 "cell_type": "code",
                 "metadata": {"trusted": True},
                 "source": [
@@ -87,6 +92,7 @@ def generate_notebook(
                 "outputs": [],
             },
             {
+                "id": "socbench-verify-data",
                 "cell_type": "code",
                 "metadata": {"trusted": True},
                 "source": [
@@ -107,6 +113,7 @@ def generate_notebook(
                 "outputs": [],
             },
             {
+                "id": "socbench-train",
                 "cell_type": "code",
                 "metadata": {"trusted": True},
                 "source": [
@@ -120,7 +127,7 @@ def generate_notebook(
                     "os.environ['TOKENIZERS_PARALLELISM'] = 'false'\\n",
                     "\\n",
                     "train_path = Path('/kaggle/working/train.py')\\n",
-                    "train_script = '''" + train_script + "'''\\n",
+                    "train_script = " + train_script_literal + "\\n",
                     "train_path.write_text(train_script)\\n",
                     "\\n",
                     "with open('train.log', 'w') as out, open('train.err', 'w') as err:\\n",
@@ -129,6 +136,18 @@ def generate_notebook(
                     "print(f'Training exited with code {p.returncode}')\\n",
                     "if p.returncode != 0:\\n",
                     "    raise RuntimeError('Training failed. See train.log and train.err.')\\n",
+                    "\\n",
+                    "# Copy compact result artifacts to the Kaggle output root.\\n",
+                    "import shutil\\n",
+                    f"result_dir = Path('{output_dir}')\\n",
+                    "for name in ['loss_curve.json', 'eval_results.json']:\\n",
+                    "    src = result_dir / name\\n",
+                    "    if src.exists():\\n",
+                    "        shutil.copy2(src, Path('/kaggle/working') / name)\\n",
+                    "for name in ['train.log', 'train.err']:\\n",
+                    "    src = Path(name)\\n",
+                    "    if src.exists():\\n",
+                    "        shutil.copy2(src, Path('/kaggle/working') / f'socbench_{name}')\\n",
                 ],
                 "execution_count": None,
                 "outputs": [],
@@ -157,7 +176,7 @@ def generate_notebook(
     }
 
     kernel_metadata = {
-        "id": f"socbench/{kernel_slug}",
+        "id": f"{kernel_owner}/{kernel_slug}",
         "title": title,
         "code_file": "notebook.ipynb",
         "language": "python",

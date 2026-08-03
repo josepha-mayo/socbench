@@ -7,11 +7,19 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import httpx
 
+from socbench.score import _extract_text
+
 VIEWER_API = "https://datasets-server.huggingface.co"
+
+
+def extract_training_text(row_data: dict[str, Any], text_key: str = "text") -> str:
+    """Return the best text payload for GPT-style proxy training."""
+    text = _extract_text(row_data, text_key)
+    return text.strip()
 
 
 async def prepare_dataset_binary(
@@ -53,10 +61,13 @@ async def prepare_dataset_binary(
         except Exception as e:
             return {"error": f"Could not fetch splits: {e}", "tokens": 0}
 
-        for split_info in splits[:1]:  # Use first split
+        train_splits = [s for s in splits if s.get("split") == "train"]
+        selected_splits = train_splits or splits
+
+        for split_info in selected_splits[:1]:
             split_name = split_info.get("split", "train")
             config = split_info.get("config", "default")
-            num_rows = split_info.get("num_rows", 0)
+            num_rows = split_info.get("num_rows") or max_samples or 10_000
 
             if max_samples:
                 num_rows = min(num_rows, max_samples)
@@ -85,11 +96,7 @@ async def prepare_dataset_binary(
 
                     for row in rows:
                         row_data = row.get("row", {})
-                        text = ""
-                        for key in [text_key, "text", "content", "document", "problem"]:
-                            if key in row_data and isinstance(row_data[key], str):
-                                text = row_data[key]
-                                break
+                        text = extract_training_text(row_data, text_key)
 
                         if text.strip():
                             tokens = enc.encode_ordinary(text)
@@ -106,7 +113,7 @@ async def prepare_dataset_binary(
 
     # Save as numpy binary (NanoGPT format)
     output = Path(output_path)
-    output.parent.mkdir(parents=True, exist_ok=True)
+    output.mkdir(parents=True, exist_ok=True)
     arr = np.array(all_tokens, dtype=np.uint16)
     arr.tofile(str(output / "train.bin"))
 
@@ -124,7 +131,7 @@ async def prepare_dataset_binary(
 
     import json
 
-    with open(output / "metadata.json", "w") as f:
+    with open(output / "metadata.json", "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2)
 
     return metadata

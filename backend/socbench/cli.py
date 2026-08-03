@@ -6,6 +6,7 @@ Socbench — 'The unexamined dataset is not worth training on.'
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -14,6 +15,8 @@ import typer
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+
+os.environ.setdefault("TY_DISABLE_SHOW_LOCALS", "1")
 
 # Force UTF-8 output so Unicode (→, ★, ✓) renders on Windows consoles.
 if sys.platform == "win32":
@@ -376,6 +379,56 @@ def kaggle_bundle(
     console.print(f'kaggle kernels push -p "{bundle.kernel_dir}"')
     console.print("\nIf the dataset already exists, use:")
     console.print(f'kaggle datasets version -p "{bundle.data_dir}" -m "Update prepared Socbench data" --dir-mode zip')
+
+
+@kaggle_app.command("launch")
+def kaggle_launch(
+    dataset_id: str = typer.Argument(..., help="Hugging Face dataset ID"),
+    prepared_data_dir: Path = typer.Argument(..., help="Directory containing train.bin"),
+    output_root: Path = typer.Option(Path("kaggle_train"), help="Bundle output directory"),
+    account: Optional[str] = typer.Option(None, help="Kaggle account name or username"),
+    tokens: int = typer.Option(1_000_000_000, help="Token budget for generated training script"),
+    binary_filename: str = typer.Option("train.bin", help="Prepared binary filename"),
+):
+    """Create/version the Kaggle dataset and push the GPU training kernel."""
+    from socbench.kaggle.accounts import DEFAULT_PROFILES_DIR, MultiAccountManager
+    from socbench.kaggle.pipeline import create_training_bundle, push_training_bundle
+
+    manager = MultiAccountManager(DEFAULT_PROFILES_DIR)
+    selected = None
+    if account:
+        selected = next((a for a in manager.accounts if account in (a.name, a.username)), None)
+        if selected is None:
+            raise typer.BadParameter(f"Unknown Kaggle account: {account}")
+    else:
+        selected = manager.get_available_account()
+        if selected is None:
+            raise typer.BadParameter("No Kaggle accounts available")
+
+    bundle = create_training_bundle(
+        dataset_id=dataset_id,
+        prepared_data_dir=prepared_data_dir,
+        output_root=output_root,
+        kaggle_owner=selected.username,
+        tokens=tokens,
+        binary_filename=binary_filename,
+    )
+    try:
+        result = push_training_bundle(
+            bundle=bundle,
+            kaggle_config_dir=selected.config_dir,
+            kaggle_api_token=selected.access_token,
+            kaggle_credentials_file=selected.credentials_file,
+        )
+    except RuntimeError as exc:
+        console.print(f"[red]Kaggle launch failed:[/red] {exc}")
+        raise typer.Exit(code=1) from None
+
+    console.print(Panel(f"[bold]{dataset_id}[/bold]\n{bundle.bundle_dir}", title="Kaggle Training Launched"))
+    console.print(f"Account: [cyan]{selected.name}[/cyan] ({selected.username})")
+    console.print(f"Dataset ref: [cyan]{bundle.kaggle_dataset_ref}[/cyan] ({result.dataset_action})")
+    console.print(f"Kernel: [cyan]{bundle.kaggle_owner}/{bundle.kernel_slug}[/cyan]")
+    console.print(f"Manifest: [cyan]{result.manifest_path}[/cyan]")
 
 
 @app.command()

@@ -35,6 +35,7 @@ backend/kaggle_with_account.py
 backend/refresh_kaggle_tokens.py
 backend/kaggle_gen_test*/
 backend/kaggle_logs/
+backend/kaggle_prepared/
 backend/kaggle_train/
 backend/kaggle_training_outputs/
 backend/output_test*/

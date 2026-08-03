@@ -30,6 +30,8 @@ SEED_DATASETS = [
     "open-web-math/open-web-math",           # pretraining-math
     "Salesforce/wikitext",                   # pretraining-web (wiki)
     "wikimedia/wikipedia",                   # pretraining-web (wiki, 2024)
+    "allenai/c4",                            # pretraining-web (classic web corpus)
+    "HuggingFaceCode/stack-v3-train",        # pretraining-code (current code corpus)
     "scholarweave/arxiv-latex",              # pretraining-science (arxiv)
     # --- SFT / Instruction ---
     "databricks/databricks-dolly-15k",       # posttraining-sft
@@ -45,9 +47,11 @@ SEED_DATASETS = [
     "LDJnr/Capybara",                        # posttraining-sft (conversation)
     "WizardLMTeam/WizardLM_evol_instruct_70k", # posttraining-sft (evol instruct)
     "m-a-p/COIG-CQIA",                       # posttraining-sft (Chinese QA)
-    "jondurbin/airoboros-2.2.1",             # posttraining-sft (diverse instruct)
     "shibing624/sharegpt_gpt4",              # posttraining-sft (ShareGPT GPT-4)
     "open-thoughts/OpenThoughts-114k",       # posttraining-sft (reasoning traces)
+    "Qyrou/reasoning-corpus-4K-5M-v1",       # posttraining-sft/reasoning
+    "XYZAILab/XYZ-Aquila-SFT",               # posttraining-sft (current SFT)
+    "r0b0tlab/qwen3.8-max-distillation-50k", # posttraining-tooluse/distillation
     "WithinUsAI/claude_mythos_distilled_25k", # posttraining-sft (distilled)
     "m-a-p/CodeFeedback-Filtered-Instruction", # posttraining-sft (code)
     "HuggingFaceH4/instruction-dataset",     # posttraining-sft (code instruct)
@@ -57,7 +61,6 @@ SEED_DATASETS = [
     "HuggingFaceH4/ultrafeedback_binarized", # posttraining-preference (large)
     "Intel/orca_dpo_pairs",                  # posttraining-preference
     "jondurbin/truthy-dpo-v0.1",             # posttraining-preference (truthfulness)
-    "Skywork/Skywork-Reward-Preference-80K-v0.2", # posttraining-preference (reward)
     "argilla/distilabel-intel-orca-dpo-pairs", # posttraining-preference
     # --- Agent Traces ---
     "Glint-Research/Fable-5-traces",         # posttraining-agent (trending #1)
@@ -80,16 +83,11 @@ SEED_DATASETS = [
     # --- Multimodal ---
     "HuggingFaceM4/the_cauldron",            # multimodal (VLM)
     "lmms-lab/LLaVA-OneVision-Data",         # multimodal
-    "HuggingFaceH4/llava-instruct-mix-vsft", # multimodal (VLM instruct)
-    # --- Safety ---
-    "LLM-LAT/harmful-dataset",               # safety (harmful prompts, DPO)
     "JailbreakV-28K/JailBreakV-28k",         # safety (jailbreak, multimodal)
     # --- Tool Calling (added per user request) ---
     "NousResearch/hermes-function-calling-v1", # posttraining-tooluse
     # --- More SFT ---
     "allenai/tulu-3-sft-mixture",            # posttraining-sft (large blend)
-    # --- More preference ---
-    "princeton-nlp/llama3-ultrafeedback-armorm", # posttraining-preference
     # --- More agent ---
     "agents-last-exam/agents-last-exam",     # posttraining-agent
     "Qwen/AgentWorldBench",                  # posttraining-agent
