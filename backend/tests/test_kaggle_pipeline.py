@@ -51,10 +51,12 @@ def test_create_training_bundle_writes_data_and_kernel_files(tmp_path: Path):
     kernel_metadata = json.loads((bundle.kernel_dir / "kernel-metadata.json").read_text(encoding="utf-8"))
     assert kernel_metadata["id"] == "holykeys/socbench-train-org-my-b7e6"
     assert kernel_metadata["dataset_sources"] == ["holykeys/org-my-dataset"]
+    assert kernel_metadata["kernel_type"] == "script"
+    assert kernel_metadata["code_file"] == "kernel.py"
 
-    notebook = json.loads((bundle.kernel_dir / "notebook.ipynb").read_text(encoding="utf-8"))
-    verify_source = "".join(notebook["cells"][2]["source"])
-    assert "/kaggle/input/org-my-dataset/train.bin" in verify_source
+    kernel_source = (bundle.kernel_dir / "kernel.py").read_text(encoding="utf-8")
+    compile(kernel_source, "<generated-kaggle-script>", "exec")
+    assert "/kaggle/input/org-my-dataset/train.bin" in kernel_source
 
 
 def test_push_training_bundle_versions_existing_dataset(tmp_path: Path, monkeypatch):

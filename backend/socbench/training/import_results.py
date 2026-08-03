@@ -15,6 +15,7 @@ from typing import Iterable
 DEFAULT_PATTERNS = (
     "kaggle_socbench/results/*/loss_curve.json",
     "kaggle_socbench/results_v12/*.json",
+    "backend/kaggle_training_outputs/**/*.log",
 )
 
 
@@ -88,18 +89,89 @@ def _campaign_version(path: Path) -> int:
     return 0
 
 
+def _extract_marker_json(text: str) -> dict | None:
+    marker = "SOCBENCH_RESULT_JSON="
+    if marker not in text:
+        return None
+    for line in text.splitlines():
+        if marker not in line:
+            continue
+        payload = line.split(marker, 1)[1].strip()
+        try:
+            return json.loads(payload)
+        except json.JSONDecodeError:
+            continue
+    try:
+        events = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(events, list):
+        return None
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        data = event.get("data")
+        if not isinstance(data, str) or marker not in data:
+            continue
+        for line in data.splitlines():
+            if marker not in line:
+                continue
+            payload = line.split(marker, 1)[1].strip()
+            try:
+                return json.loads(payload)
+            except json.JSONDecodeError:
+                continue
+    return None
+
+
+def _normalize_marker_summary(summary: dict) -> dict:
+    loss_data = summary.get("loss_curve.json")
+    eval_data = summary.get("eval_results.json")
+    if not isinstance(loss_data, dict):
+        loss_data = {}
+    if not isinstance(eval_data, dict):
+        eval_data = {}
+
+    return {
+        "dataset_id": summary.get("dataset_id"),
+        "n_tokens": loss_data.get("n_tokens") or loss_data.get("total_tokens") or summary.get("tokens_budget"),
+        "n_samples": summary.get("n_samples"),
+        "parameters": summary.get("parameters"),
+        "max_iters": loss_data.get("max_iters") or loss_data.get("total_iters"),
+        "final_val_loss": eval_data.get("final_val_loss") or loss_data.get("final_val_loss"),
+        "best_val_loss": eval_data.get("best_val_loss") or loss_data.get("best_val_loss"),
+        "gpu": summary.get("gpu"),
+        "pytorch_version": summary.get("pytorch_version"),
+        "batch_size": summary.get("batch_size"),
+        "use_fp16": summary.get("use_fp16"),
+        "num_gpus": summary.get("num_gpus", 1),
+        "loss_curve": loss_data.get("loss_curve"),
+    }
+
+
 def load_training_artifact(path: Path, root: Path) -> tuple[TrainingArtifact | None, str | None]:
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        text = path.read_text(encoding="utf-8")
     except (OSError, json.JSONDecodeError) as exc:
-        return None, f"unreadable JSON: {exc}"
+        return None, f"unreadable artifact: {exc}"
+
+    if path.suffix.lower() == ".log":
+        marker_summary = _extract_marker_json(text)
+        if marker_summary is None:
+            return None, "missing SOCBENCH_RESULT_JSON marker"
+        data = _normalize_marker_summary(marker_summary)
+    else:
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError as exc:
+            return None, f"unreadable JSON: {exc}"
 
     dataset_id = data.get("dataset_id")
     if not isinstance(dataset_id, str) or not dataset_id.strip():
         return None, "missing dataset_id"
 
     raw_curve = data.get("loss_curve")
-    if not isinstance(raw_curve, list) or len(raw_curve) < 2:
+    if not isinstance(raw_curve, list) or len(raw_curve) < 1:
         return None, "missing comparable loss_curve"
 
     curve_values: list[float] = []

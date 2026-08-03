@@ -105,6 +105,67 @@ def test_load_training_artifact_rejects_smoke_schema(tmp_path):
     assert reason == "missing dataset_id"
 
 
+def test_load_training_artifact_accepts_kaggle_log_marker(tmp_path):
+    root = tmp_path
+    path = root / "backend" / "kaggle_training_outputs" / "dataset-a" / "kernel.log"
+    path.parent.mkdir(parents=True)
+    summary = {
+        "dataset_id": "dataset/a",
+        "tokens_budget": 123456,
+        "loss_curve.json": {
+            "n_tokens": 123456,
+            "max_iters": 10,
+            "best_val_loss": 4.0,
+            "final_val_loss": 4.2,
+            "loss_curve": [
+                {"step": 0, "train_loss": None, "val_loss": 5.0},
+                {"step": 9, "train_loss": None, "val_loss": 4.2},
+            ],
+        },
+        "eval_results.json": {
+            "best_val_loss": 4.0,
+            "final_val_loss": 4.2,
+        },
+    }
+    path.write_text(
+        json.dumps([{"stream_name": "stderr", "data": "SOCBENCH_RESULT_JSON=" + json.dumps(summary) + "\n"}]),
+        encoding="utf-8",
+    )
+
+    artifact, reason = load_training_artifact(path, root)
+
+    assert reason is None
+    assert artifact is not None
+    assert artifact.dataset_id == "dataset/a"
+    assert artifact.n_tokens == 123456
+    assert artifact.final_val_loss == 4.2
+
+
+def test_load_training_artifact_accepts_single_step_comparable_curve(tmp_path):
+    root = tmp_path
+    path = root / "backend" / "kaggle_training_outputs" / "dataset-a" / "loss_curve.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        json.dumps(
+            {
+                "dataset_id": "dataset/a",
+                "n_tokens": 1000000,
+                "max_iters": 1,
+                "final_val_loss": 10.9,
+                "best_val_loss": 10.9,
+                "loss_curve": [{"step": 0, "train_loss": None, "val_loss": 10.9}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    artifact, reason = load_training_artifact(path, root)
+
+    assert reason is None
+    assert artifact is not None
+    assert artifact.convergence_steps == 0
+
+
 def test_build_plan_selects_best_complete_run_and_reports_orphans(tmp_path):
     db = tmp_path / "socbench.db"
     _make_db(db)

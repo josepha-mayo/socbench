@@ -30,9 +30,9 @@ As of the latest recovery pass:
 
 - `datasets`: 55
 - `leaderboard`: 55
-- `training_runs`: 10
+- `training_runs`: 13
 - `/api/stats`: returns HTTP 200
-- `/api/training-leaderboard?limit=20`: returns 10 trained rows plus pending candidates
+- `/api/training-leaderboard?limit=20`: returns 13 trained rows plus pending candidates
 - `/training`: renders the recovered training leaderboard in the frontend
 
 The recovered trained rows include `tatsu-lab/alpaca`, `EdinburghNLP/xsum`,
@@ -259,8 +259,9 @@ compact result files to the output root for download/import.
 
 ### Current launched batch
 
-On August 3, 2026, the first new 5M-token Kaggle proxy runs were launched and
-reached Kaggle `COMPLETE` status:
+On August 3, 2026, the first new 1M-token Kaggle smoke/proxy runs were launched,
+reached Kaggle `COMPLETE` status, downloaded result artifacts, and were imported
+into the local training leaderboard:
 
 ```text
 Salesforce/wikitext                         holykeys/socbench-train-salesfoc13c
@@ -270,10 +271,10 @@ r0b0tlab/qwen3.8-max-distillation-50k       ippojoe/socbench-train-r0b0tlabed1
 
 Use `kaggle kernels status <owner>/<slug>` with the matching profile credentials
 to poll them, then `kaggle kernels output <owner>/<slug> -p <output-dir> -o` to
-pull artifacts before running the importer. At the time of this checkpoint, the
-Kaggle output API returned only kernel logs for those completed versions, so the
-local `training_runs` table still contains the 10 recovered runs until result
-artifacts are available.
+pull artifacts before running the importer. The imported smoke runs use the
+script-kernel path, force CPU on Kaggle's current P100 image, keep checkpoints
+under `/kaggle/temp`, and publish compact JSON/log artifacts under
+`/kaggle/working`.
 
 ## Catalog Curation
 

@@ -6,7 +6,7 @@ import json
 import tempfile
 from pathlib import Path
 
-from socbench.kaggle.notebook import generate_notebook, kernel_slug_for, save_notebook
+from socbench.kaggle.notebook import generate_kernel_script, generate_notebook, kernel_slug_for, save_notebook
 
 
 def test_kernel_slug_for_stability_and_collision():
@@ -80,6 +80,18 @@ def test_save_notebook_writes_files():
         assert notebook["nbformat"] == 4
         assert metadata["id"].startswith("socbench/")
         assert metadata["code_file"] == "notebook.ipynb"
+
+
+def test_generate_kernel_script_compiles_and_uses_script_metadata():
+    result = generate_kernel_script("user/my-dataset", dataset_owner="holykeys", tokens=5_000_000)
+
+    compile(result["source"], "<generated-kaggle-script>", "exec")
+    assert result["kernel_metadata"]["id"] == f"holykeys/{result['kernel_slug']}"
+    assert result["kernel_metadata"]["kernel_type"] == "script"
+    assert result["kernel_metadata"]["code_file"] == "kernel.py"
+    assert "SOCBENCH_RESULT_JSON=" in result["source"]
+    assert "'torch'," not in result["source"]
+    assert "/kaggle/input/datasets/holykeys/user-my-dataset/train.bin" in result["source"]
 
 
 def test_kernel_slug_for_empty_prefix_fallback():

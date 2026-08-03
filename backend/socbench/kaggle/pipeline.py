@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from socbench.kaggle.notebook import dataset_safe_id, save_notebook
+from socbench.kaggle.notebook import dataset_safe_id, save_script_kernel
 
 DEFAULT_LICENSE = "CC0-1.0"
 MAX_KAGGLE_TITLE_LENGTH = 50
@@ -114,7 +114,7 @@ def create_training_bundle(
         encoding="utf-8",
     )
 
-    notebook_result = save_notebook(
+    kernel_result = save_script_kernel(
         str(kernel_dir),
         dataset_id,
         binary_filename=binary_filename,
@@ -128,7 +128,7 @@ def create_training_bundle(
         kaggle_owner=kaggle_owner,
         kaggle_dataset_slug=dataset_slug,
         kaggle_dataset_ref=f"{kaggle_owner}/{dataset_slug}",
-        kernel_slug=notebook_result["slug"],
+        kernel_slug=kernel_result["slug"],
         bundle_dir=bundle_dir,
         data_dir=data_dir,
         kernel_dir=kernel_dir,

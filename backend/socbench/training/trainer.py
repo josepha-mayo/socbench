@@ -40,9 +40,28 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
 
 
-def save_loss_curve(losses, best, iters, total_tokens, out):
+def save_loss_curve(losses, best, iters, total_tokens, out, steps=None):
+    if steps is None:
+        steps = list(range(len(losses)))
+    comparable_curve = [
+        {{"step": step, "train_loss": None, "val_loss": loss}}
+        for step, loss in zip(steps, losses)
+    ]
     with open(os.path.join(out, "loss_curve.json"), "w") as f:
-        json.dump(dict(losses=losses, best_val_loss=best, total_iters=iters, total_tokens=total_tokens), f, indent=2)
+        json.dump(
+            dict(
+                losses=losses,
+                loss_curve=comparable_curve,
+                best_val_loss=best,
+                final_val_loss=losses[-1] if losses else best,
+                total_iters=iters,
+                max_iters=iters,
+                total_tokens=total_tokens,
+                n_tokens=total_tokens,
+            ),
+            f,
+            indent=2,
+        )
 
 
 def save_eval_results(out, best, final):
@@ -56,7 +75,7 @@ dataset_path = "{dataset_bin_path}"
 out_dir = "{output_dir}"
 eval_interval = {TRAIN.eval_interval}
 log_interval = {TRAIN.log_interval}
-eval_iters = {TRAIN.eval_iters}
+eval_iters = min({TRAIN.eval_iters}, max(1, {tokens} // ({TRAIN.batch_size} * {MODEL.block_size} * 2 * {TRAIN.gradient_accumulation_steps})))
 eval_only = False
 always_save_checkpoint = True
 init_from = "scratch"
@@ -72,21 +91,34 @@ bias = {MODEL.bias}
 
 # Optimizer
 learning_rate = {TRAIN.learning_rate}
-max_iters = {tokens // (TRAIN.batch_size * 2 * TRAIN.gradient_accumulation_steps)}
+max_iters = max(1, {tokens} // ({TRAIN.batch_size} * block_size * 2 * {TRAIN.gradient_accumulation_steps}))
 weight_decay = {TRAIN.weight_decay}
 beta1 = {TRAIN.betas[0]}
 beta2 = {TRAIN.betas[1]}
 grad_clip = {TRAIN.grad_clip}
 
 # Schedule
-warmup_iters = {TRAIN.warmup_tokens // (TRAIN.batch_size * TRAIN.gradient_accumulation_steps)}
+tokens = {tokens}
+warmup_iters = max(1, {TRAIN.warmup_tokens} // ({TRAIN.batch_size} * block_size * 2 * {TRAIN.gradient_accumulation_steps}))
 lr_decay_iters = max_iters
 min_lr = {TRAIN.lr_decay_to}
 
 # System
-device = "cuda"
+device = os.environ.get("SOCBENCH_TRAIN_DEVICE", "cuda")
 dtype = "float16"
-compile = {TRAIN.compile}
+compile = {TRAIN.compile} and device == "cuda"
+if device == "cuda":
+    try:
+        assert torch.cuda.is_available()
+        capability = torch.cuda.get_device_capability()
+        if capability[0] < 7:
+            raise RuntimeError(f"CUDA capability sm_{{capability[0]}}{{capability[1]}} is below the supported floor")
+        torch.empty(1, device="cuda")
+    except Exception as exc:
+        print(f"CUDA unavailable or unsupported ({{exc}}); falling back to CPU")
+        device = "cpu"
+        dtype = "float32"
+        compile = False
 
 # ── DDP Setup ───────────────────────────────────────────────────────────────
 
@@ -253,7 +285,37 @@ class GPT(torch.nn.Module):
             loss = None
         return logits, loss
 
+    def configure_optimizers(self, weight_decay, learning_rate, betas, device_type):
+        decay = set()
+        no_decay = set()
+        whitelist_weight_modules = (torch.nn.Linear,)
+        blacklist_weight_modules = (torch.nn.LayerNorm, torch.nn.Embedding)
+        for mn, module in self.named_modules():
+            for pn, param in module.named_parameters():
+                fpn = f"{{mn}}.{{pn}}" if mn else pn
+                if pn.endswith("bias"):
+                    no_decay.add(fpn)
+                elif pn.endswith("weight") and isinstance(module, whitelist_weight_modules):
+                    decay.add(fpn)
+                elif pn.endswith("weight") and isinstance(module, blacklist_weight_modules):
+                    no_decay.add(fpn)
+        no_decay.add("lm_head.weight")
+        param_dict = {{pn: p for pn, p in self.named_parameters()}}
+        decay = sorted(pn for pn in decay if pn in param_dict)
+        no_decay = sorted(pn for pn in no_decay if pn in param_dict)
+        optim_groups = [
+            {{"params": [param_dict[pn] for pn in decay], "weight_decay": weight_decay}},
+            {{"params": [param_dict[pn] for pn in no_decay], "weight_decay": 0.0}},
+        ]
+        fused_available = "fused" in torch.optim.AdamW.__init__.__code__.co_varnames
+        use_fused = fused_available and device_type == "cuda"
+        extra_args = {{"fused": True}} if use_fused else {{}}
+        return torch.optim.AdamW(optim_groups, lr=learning_rate, betas=betas, **extra_args)
+
 batch_size = {TRAIN.batch_size}
+if device_type == "cpu":
+    batch_size = 1
+    gradient_accumulation_steps = 1
 model_args = dict(n_layer=n_layer, n_head=n_head, n_embd=n_embd, block_size=block_size, vocab_size=vocab_size, dropout=dropout, bias=bias)
 config = GPTConfig(**model_args)
 model = GPT(config)
@@ -291,6 +353,7 @@ running_mfu = -1.0
 iter_num = 0
 best_val_loss = 1e9
 losses_log = []
+loss_steps = []
 
 if master_process:
     print(f"Starting training: {{max_iters}} iterations, {{tokens}} tokens")
@@ -302,7 +365,7 @@ while iter_num < max_iters:
     for param_group in optimizer.param_groups:
         param_group["lr"] = lr
 
-    if iter_num % eval_interval == 0 and master_process:
+    if (iter_num % eval_interval == 0 or iter_num == max_iters - 1) and master_process:
         losses = torch.zeros(eval_iters)
         model.eval()
         for k in range(eval_iters):
@@ -313,6 +376,7 @@ while iter_num < max_iters:
         model.train()
         val_loss = losses.mean().item()
         losses_log.append(val_loss)
+        loss_steps.append(iter_num)
         if master_process:
             print(f"iter {{iter_num}}: val loss {{val_loss:.4f}}")
             if val_loss < best_val_loss:
@@ -370,7 +434,7 @@ if master_process:
     torch.save(checkpoint, os.path.join(out_dir, "ckpt_final.pt"))
 
     val_loss = losses_log[-1] if losses_log else best_val_loss
-    save_loss_curve(losses_log, best_val_loss, iter_num, tokens, out_dir)
+    save_loss_curve(losses_log, best_val_loss, iter_num, tokens, out_dir, loss_steps)
     save_eval_results(out_dir, best_val_loss, val_loss)
 
     print(f"Training complete. Best val loss: {{best_val_loss:.4f}}")
