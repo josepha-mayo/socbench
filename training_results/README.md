@@ -1,15 +1,15 @@
-# Socbench Kaggle Training Results
+# Socbench Training Results
 
-This directory keeps small recovered Kaggle training-result artifacts used by
+This directory keeps small validated training-result artifacts used by
 `python -m socbench.training.import_results`.
 
 It intentionally contains JSON loss curves and summary files, not model checkpoints,
-Kaggle credentials, generated notebooks, or local logs.
+compute credentials, generated runners, or local logs.
 
 ## Contents
 
-- `results/*/loss_curve.json`: recovered historical campaign result files.
-- `results_v12/*.json`: recovered v12 campaign result files.
+- `validated/*_v*/result.json`: one canonical validated artifact per selected
+  dataset/campaign.
 
 ## Recovery Import
 

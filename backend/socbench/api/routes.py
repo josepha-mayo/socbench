@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Optional
+from typing import Annotated, Literal, Optional
 
-from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
+from fastapi import APIRouter, Query
+from pydantic import BaseModel, StringConstraints
 from sqlalchemy import func, select
 
 from socbench.db import async_session_factory
@@ -70,7 +70,10 @@ async def list_datasets(
     async with async_session_factory() as session:
         valid_sorts = {"downloads", "likes", "trending_score", "row_count"}
         col = getattr(DatasetRow, sort if sort in valid_sorts else "downloads")
-        stmt = select(DatasetRow).order_by(col.desc() if order == "desc" else col.asc())
+        stmt = select(DatasetRow)
+        if category:
+            stmt = stmt.join(LeaderboardRow).where(LeaderboardRow.category == category)
+        stmt = stmt.order_by(col.desc() if order == "desc" else col.asc())
         stmt = stmt.offset(offset).limit(limit)
         result = await session.execute(stmt)
         datasets = result.scalars().all()
@@ -100,7 +103,12 @@ async def get_dataset(hf_id: str):
             lb_stmt = select(LeaderboardRow).where(LeaderboardRow.dataset_id == ds.id)
             lb = (await session.execute(lb_stmt)).scalar_one_or_none()
 
-            train_stmt = select(TrainingRunRow).where(TrainingRunRow.dataset_id == ds.id)
+            train_stmt = (
+                select(TrainingRunRow)
+                .where(TrainingRunRow.dataset_id == ds.id)
+                .order_by(TrainingRunRow.trained_at.desc(), TrainingRunRow.id.desc())
+                .limit(1)
+            )
             training = (await session.execute(train_stmt)).scalar_one_or_none()
 
             from socbench.categories import CATEGORIES
@@ -278,10 +286,18 @@ async def get_training_leaderboard(
     seen: set[str] = set()
 
     async with async_session_factory() as session:
+        latest_training_id = (
+            select(TrainingRunRow.id)
+            .where(TrainingRunRow.dataset_id == DatasetRow.id)
+            .order_by(TrainingRunRow.trained_at.desc(), TrainingRunRow.id.desc())
+            .limit(1)
+            .correlate(DatasetRow)
+            .scalar_subquery()
+        )
         stmt = (
             select(LeaderboardRow, DatasetRow, TrainingRunRow)
             .join(DatasetRow, LeaderboardRow.dataset_id == DatasetRow.id)
-            .outerjoin(TrainingRunRow, TrainingRunRow.dataset_id == DatasetRow.id)
+            .outerjoin(TrainingRunRow, TrainingRunRow.id == latest_training_id)
             .where(LeaderboardRow.training_score.isnot(None))
             .order_by(LeaderboardRow.training_score.desc())
             .limit(limit)
@@ -510,21 +526,26 @@ async def get_categories():
 # Evaluation requests
 # ---------------------------------------------------------------------------
 
+DatasetId = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=512, pattern=r"^\S+$"),
+]
+ShortText = Annotated[str, StringConstraints(strip_whitespace=True, max_length=256)]
+NotesText = Annotated[str, StringConstraints(strip_whitespace=True, max_length=4_000)]
+
+
 class EvalRequest(BaseModel):
-    hf_id: str
-    visibility: str = "public"  # "public" or "private"
-    requester_email: str = ""
-    requester_name: str = ""
-    notes: str = ""
+    hf_id: DatasetId
+    visibility: Literal["public", "private"] = "public"
+    requester_email: ShortText = ""
+    requester_name: ShortText = ""
+    notes: NotesText = ""
 
 
 @router.post("/request-evaluation")
 async def request_evaluation(req: EvalRequest):
     """Submit a dataset evaluation request (public or private).
     Persists to database. Email is handled client-side via mailto: link."""
-    if req.visibility not in ("public", "private"):
-        raise HTTPException(status_code=400, detail="visibility must be 'public' or 'private'")
-
     from socbench.models import EvalRequestRow
 
     async with async_session_factory() as session:

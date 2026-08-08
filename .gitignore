@@ -31,33 +31,13 @@ backend/*_loop.ps1
 backend/poll_manual.ps1
 backend/watcher.ps1
 backend/download_training_outputs.py
-backend/kaggle_with_account.py
-backend/refresh_kaggle_tokens.py
-backend/kaggle_gen_test*/
-backend/kaggle_logs/
-backend/kaggle_pulled/
-backend/kaggle_prepared/
-backend/kaggle_train/
-backend/kaggle_training_outputs/
-# Local-only GPU orchestration. Socbench tracks validated result artifacts and proofs only.
-backend/socbench/kaggle/
-backend/tests/test_kaggle_*.py
-backend/tests/test_notebook.py
-backend/tests/test_poll_kernels.py
-backend/poll_kernels.py
+backend/training_outputs/
 backend/output_test*/
 backend/pulled_kernel/
-backend/test_kaggle_init/
 backend/test_output_*/
 backend/train_test_extracted.py
-backend/test_push_one.py
 backend/train_pending.log
 backend/poll_status.log
-
-# Kaggle provenance artifacts: keep result JSONs in git, ignore operational scratch.
-kaggle_socbench/_*.py
-kaggle_socbench/kernels/
-kaggle_socbench/socbench_kaggle/
 
 # Node / Next.js
 node_modules/

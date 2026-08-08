@@ -137,14 +137,16 @@ gradient_accumulation_steps = int(
 )
 if ddp:
     os.environ["NCCL_P2P_DISABLE"] = "1"
-    try:
-        init_process_group("nccl")
-    except Exception:
-        print("nccl init failed; falling back to gloo backend")
-        init_process_group("gloo")
+    init_process_group("nccl")
     ddp_rank = int(os.environ["RANK"])
     ddp_local_rank = int(os.environ["LOCAL_RANK"])
     ddp_world_size = int(os.environ["WORLD_SIZE"])
+    required_world_size = int(os.environ.get("SOCBENCH_REQUIRED_WORLD_SIZE", "1"))
+    if ddp_world_size != required_world_size:
+        raise RuntimeError(
+            f"Expected WORLD_SIZE={{required_world_size}}, got {{ddp_world_size}}. "
+            "Refusing to train with the wrong GPU count."
+        )
     device = f"cuda:{{ddp_local_rank}}"
     torch.cuda.set_device(device)
     master_process = ddp_rank == 0
@@ -374,7 +376,8 @@ loss_steps = []
 if master_process:
     print(f"Starting training: {{max_iters}} iterations, {{tokens}} tokens")
     print(f"Dataset: {{dataset_path}}")
-    print(f"Effective batch size: {{batch_size * gradient_accumulation_steps * (2 if ddp else 1)}}")
+    print(f"World size: {{ddp_world_size if ddp else 1}}")
+    print(f"Effective batch size: {{batch_size * gradient_accumulation_steps * (ddp_world_size if ddp else 1)}}")
     print(f"Tokens per iteration: {{tokens_per_iter}}")
 
 while iter_num < max_iters:
@@ -382,22 +385,26 @@ while iter_num < max_iters:
     for param_group in optimizer.param_groups:
         param_group["lr"] = lr
 
-    if (iter_num % eval_interval == 0 or iter_num == max_iters - 1) and master_process:
-        losses = torch.zeros(eval_iters)
+    if iter_num % eval_interval == 0 or iter_num == max_iters - 1:
+        losses = torch.zeros(eval_iters, device=device)
         model.eval()
         for k in range(eval_iters):
             X_eval, Y_eval = get_batch("val")
             # Validation must not retain autograd activations. At GPT-2 124M /
-            # 1024 tokens, doing so exhausts a Kaggle T4 despite a safe train batch.
+            # 1024 tokens, doing so exhausts a 16 GB accelerator despite a safe train batch.
             with torch.inference_mode():
                 with ctx:
                     _, loss = model(X_eval, Y_eval)
-            losses[k] = loss.item()
+            losses[k] = loss.detach()
         model.train()
-        val_loss = losses.mean().item()
-        losses_log.append(val_loss)
-        loss_steps.append(iter_num)
+        val_loss_tensor = losses.mean()
+        if ddp:
+            torch.distributed.all_reduce(val_loss_tensor, op=torch.distributed.ReduceOp.SUM)
+            val_loss_tensor /= ddp_world_size
+        val_loss = val_loss_tensor.item()
         if master_process:
+            losses_log.append(val_loss)
+            loss_steps.append(iter_num)
             print(f"iter {{iter_num}}: val loss {{val_loss:.4f}}")
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
@@ -433,7 +440,7 @@ while iter_num < max_iters:
         mfu = -1.0
         if running_mfu > 0:
             mfu = running_mfu
-        tokens_per_sec = batch_size * block_size * gradient_accumulation_steps / dt if dt > 0 else 0
+        tokens_per_sec = tokens_per_iter / dt if dt > 0 else 0
         print(f"iter {{iter_num}}: loss {{loss.item():.4f}}, lr {{lr:.6e}}, {{tokens_per_sec:.0f}} tok/s, mfu {{mfu:.2f}}")
 
     iter_num += 1
@@ -464,6 +471,7 @@ if master_process:
     print(f"Eval results saved to {{out_dir}}/eval_results.json")
 
 if ddp:
+    torch.distributed.barrier()
     destroy_process_group()
 '''
     return (

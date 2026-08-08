@@ -1,14 +1,11 @@
-version: "3.8"
-
 services:
   postgres:
-    image: postgres:16
+    image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: socbench
       POSTGRES_USER: socbench
-      POSTGRES_PASSWORD: socbench
-    ports:
-      - "5432:5432"
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -16,33 +13,43 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+      start_period: 10s
 
   api:
+    restart: unless-stopped
     build:
       context: ./backend
       dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+asyncpg://socbench:socbench@postgres/socbench
+      APP_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
       HF_TOKEN: ${HF_TOKEN:-}
-    volumes:
-      - ./backend:/app
-      - ./output:/app/output
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      TRUSTED_HOSTS: ${TRUSTED_HOSTS:-api,localhost,127.0.0.1}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   frontend:
+    restart: unless-stopped
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        SOCBENCH_API_URL: http://api:8000
     ports:
       - "3000:3000"
     depends_on:
-      - api
-    environment:
-      SOCBENCH_API_URL: http://api:8000
+      api:
+        condition: service_healthy
 
 volumes:
   pgdata:

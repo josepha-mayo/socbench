@@ -79,7 +79,7 @@ def test_build_dataset_proof_includes_scores_and_training():
         eval_scores={"ppl": 23.1},
         gpu_hours=1.5,
         trained_at=now,
-        model_config={"source_artifact": "kaggle_socbench/results/run/loss_curve.json"},
+        model_config={"source_artifact": "training_results/validated/run_v1/result.json"},
     )
 
     proof = build_dataset_proof(
@@ -96,4 +96,4 @@ def test_build_dataset_proof_includes_scores_and_training():
     assert proof["leaderboard"]["combined_score"] == 0.82
     assert proof["scores"][0]["scorer_name"] == "quality"
     assert proof["contamination"][0]["benchmark_name"] == "MMLU"
-    assert proof["training"]["model_config"]["source_artifact"].endswith("loss_curve.json")
+    assert proof["training"]["model_config"]["source_artifact"].endswith("result.json")

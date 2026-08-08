@@ -5,6 +5,7 @@ const apiUrl = (process.env.SOCBENCH_API_URL || process.env.NEXT_PUBLIC_API_URL 
 );
 
 const nextConfig = {
+  output: "standalone",
   async rewrites() {
     return [
       {

@@ -17,7 +17,7 @@ utility, documentation, popularity, freshness, PII safety, contamination risk, a
   trending datasets, and evaluation requests.
 - Serves a Next.js frontend with leaderboard, training, eval, trending, discover, and
   dataset detail views.
-- Recovers historical Kaggle GPT-2 proxy-training artifacts into the SQLite leaderboard.
+- Imports validated GPT-2 proxy-training results into the SQLite leaderboard.
 - Keeps pending training candidates visible from live Hugging Face trending and downloads
   scans, with caching so the training page stays responsive.
 
@@ -39,7 +39,7 @@ The recovered trained rows include `tatsu-lab/alpaca`, `EdinburghNLP/xsum`,
 `m-a-p/COIG-CQIA`, `garage-bAInd/Open-Platypus`, `yahma/alpaca-cleaned`,
 `teknium/OpenHermes-2.5`, `WizardLMTeam/WizardLM_evol_instruct_70k`,
 `LDJnr/Capybara`, `HuggingFaceH4/ultrachat_200k`, and `OpenAssistant/oasst1`.
-The Kaggle smoke/proxy imports also include `Salesforce/wikitext`,
+The recovered proxy results also include `Salesforce/wikitext`,
 `HuggingFaceCode/stack-v3-train`, `r0b0tlab/qwen3.8-max-distillation-50k`,
 `allenai/c4`, `HuggingFaceFW/fineweb-edu`, and
 `NousResearch/hermes-function-calling-v1`.
@@ -68,8 +68,8 @@ backend/
   tests/              Backend unit tests
 frontend/
   src/app/            Next.js App Router UI
-kaggle_socbench/
-  results*/           Recovered historical Kaggle loss-curve artifacts
+training_results/
+  validated/          Canonical loss-curve and evaluation artifacts
 PLAN.md               Product/architecture notes
 docker-compose.yml    Local Postgres/API/frontend composition
 ```
@@ -238,10 +238,12 @@ Each `dataset.json` contains the dataset metadata, leaderboard dimensions,
 individual scorer details, contamination rows, and latest training-run provenance
 when available. The export directory is local runtime output and is ignored by Git.
 
-## Training Result Recovery
+## Training Result Import
 
-Historical Kaggle training artifacts are kept under `kaggle_socbench/results*`.
-They are small JSON provenance files, not model checkpoints.
+Validated external training results are compact JSON provenance files under
+`training_results/validated`, not model checkpoints. One canonical artifact per
+dataset/campaign is kept. Account credentials, launch configuration, logs, and
+generated runner files stay outside this repository.
 
 Dry-run an import plan:
 
@@ -313,22 +315,38 @@ Before live catalog mutation, back up `backend/socbench.db`; the cleanup created
 
 ```powershell
 cd C:\Users\USER\.vscode\vibe
+Copy-Item .env.example .env
+# Replace both password placeholders. URL-encode reserved characters in DATABASE_URL.
 docker compose up --build
 ```
 
 Services:
 
-- Postgres: `localhost:5432`
-- API: `localhost:8000`
-- Frontend: `localhost:3000`
+- Postgres is private to the Compose network.
+- API: `http://localhost:8000`
+- Frontend: `http://localhost:3000`
+
+Readiness checks:
+
+```powershell
+Invoke-RestMethod http://localhost:8000/healthz
+Invoke-RestMethod http://localhost:8000/readyz
+```
+
+The production images use non-root users, the frontend runs the standalone Next.js
+server, and the API waits for a healthy database. Set `CORS_ORIGINS` to browser
+origins allowed to call the API and `TRUSTED_HOSTS` to the API host names. Both are
+comma-separated and production defaults are fail-closed.
 
 ## Production Notes
 
 - Do not commit `backend/socbench.db`; it is local runtime state.
 - Commit source, tests, docs, and small recovered provenance JSONs.
-- Keep Kaggle credentials outside the repository.
+- Keep all external compute credentials and operations outside the repository.
 - Set `DATABASE_URL` for production Postgres.
 - Set `SOCBENCH_API_URL` for frontend deployments.
+- Set `APP_ENV=production`, `TRUSTED_HOSTS`, and the narrowest practical `CORS_ORIGINS`.
+- Use `/healthz` for liveness and `/readyz` for database-backed readiness.
 - Run backend tests, frontend lint/typecheck/build, and npm audit before release.
 
 ## Known Gaps
@@ -338,17 +356,12 @@ These are not finished yet:
 - Audit decontamination now has a local n-gram eval-bank index for `.json`, `.jsonl`,
   `.txt`, and `.md` benchmark files, plus a bounded Hugging Face benchmark fallback.
   Full MinHash/LSH scale-out and curated eval-bank coverage are still future work.
-- Kaggle bundle creation and launch orchestration are implemented and tested, including
-  OAuth profile isolation, dataset create/version fallback, kernel push, and launch
-  manifests. Output collection still needs a hardened importer path for newly launched
-  notebooks across Kaggle CLI versions.
 - Eval-proof export exists for scored datasets, but proofs should be regenerated after
   every catalog curation/training import batch.
 - `teknium/OpenHermes-2.5` and `LDJnr/Capybara` have real recovered training scores,
   but their automated scoring rows were restored minimally because Hugging Face sample
   fetching failed during recovery.
 
-So: the restored training leaderboard is real and displaying, new Kaggle training
-runs can be launched from the repo, and the local catalog has been curated. The
-remaining work is mostly operational hardening around post-run artifact import,
-proof regeneration after each batch, and larger-scale decontamination coverage.
+The restored training leaderboard is displaying and the local catalog is curated.
+Remaining research work is larger-scale decontamination coverage and regenerating
+proof exports whenever a validated training-result batch is imported.

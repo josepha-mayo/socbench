@@ -92,7 +92,7 @@ def _make_db(path: Path):
 
 def test_load_training_artifact_rejects_smoke_schema(tmp_path):
     root = tmp_path
-    path = root / "backend" / "kaggle_training_outputs" / "x" / "loss_curve.json"
+    path = root / "backend" / "training_outputs" / "x" / "loss_curve.json"
     path.parent.mkdir(parents=True)
     path.write_text(
         json.dumps({"losses": [10.0], "best_val_loss": 10.0, "total_iters": 1}),
@@ -105,9 +105,9 @@ def test_load_training_artifact_rejects_smoke_schema(tmp_path):
     assert reason == "missing dataset_id"
 
 
-def test_load_training_artifact_accepts_kaggle_log_marker(tmp_path):
+def test_load_training_artifact_accepts_log_marker(tmp_path):
     root = tmp_path
-    path = root / "backend" / "kaggle_training_outputs" / "dataset-a" / "kernel.log"
+    path = root / "backend" / "training_outputs" / "dataset-a" / "runner.log"
     path.parent.mkdir(parents=True)
     summary = {
         "dataset_id": "dataset/a",
@@ -141,11 +141,11 @@ def test_load_training_artifact_accepts_kaggle_log_marker(tmp_path):
     assert artifact.final_val_loss == 4.2
 
 
-def test_build_plan_accepts_kaggle_result_summary(tmp_path):
+def test_build_plan_accepts_result_summary(tmp_path):
     root = tmp_path
     db = tmp_path / "socbench.db"
     _make_db(db)
-    path = root / "backend" / "kaggle_training_outputs" / "dataset-a" / "socbench_result.json"
+    path = root / "backend" / "training_outputs" / "dataset-a" / "socbench_result.json"
     path.parent.mkdir(parents=True)
     path.write_text(
         json.dumps(
@@ -180,7 +180,7 @@ def test_build_plan_accepts_kaggle_result_summary(tmp_path):
 
 def test_load_training_artifact_accepts_single_step_comparable_curve(tmp_path):
     root = tmp_path
-    path = root / "backend" / "kaggle_training_outputs" / "dataset-a" / "loss_curve.json"
+    path = root / "backend" / "training_outputs" / "dataset-a" / "loss_curve.json"
     path.parent.mkdir(parents=True)
     path.write_text(
         json.dumps(
@@ -206,9 +206,9 @@ def test_load_training_artifact_accepts_single_step_comparable_curve(tmp_path):
 def test_build_plan_selects_best_complete_run_and_reports_orphans(tmp_path):
     db = tmp_path / "socbench.db"
     _make_db(db)
-    _write_result(tmp_path / "kaggle_socbench" / "results" / "a_v21" / "loss_curve.json", "dataset/a", 5.0, 5.5)
-    _write_result(tmp_path / "kaggle_socbench" / "results" / "a_v22" / "loss_curve.json", "dataset/a", 4.0, 4.2)
-    _write_result(tmp_path / "kaggle_socbench" / "results" / "orphan_v22" / "loss_curve.json", "dataset/missing", 3.0, 3.2)
+    _write_result(tmp_path / "training_results" / "validated" / "a_v21" / "result.json", "dataset/a", 5.0, 5.5)
+    _write_result(tmp_path / "training_results" / "validated" / "a_v22" / "result.json", "dataset/a", 4.0, 4.2)
+    _write_result(tmp_path / "training_results" / "validated" / "orphan_v22" / "result.json", "dataset/missing", 3.0, 3.2)
 
     plan = build_import_plan(tmp_path, db)
 
@@ -220,8 +220,8 @@ def test_build_plan_selects_best_complete_run_and_reports_orphans(tmp_path):
 def test_build_plan_prefers_latest_campaign_before_lower_loss(tmp_path):
     db = tmp_path / "socbench.db"
     _make_db(db)
-    _write_result(tmp_path / "kaggle_socbench" / "results" / "a_v21" / "loss_curve.json", "dataset/a", 3.0, 3.1)
-    _write_result(tmp_path / "kaggle_socbench" / "results" / "a_v22" / "loss_curve.json", "dataset/a", 4.0, 4.2)
+    _write_result(tmp_path / "training_results" / "validated" / "a_v21" / "result.json", "dataset/a", 3.0, 3.1)
+    _write_result(tmp_path / "training_results" / "validated" / "a_v22" / "result.json", "dataset/a", 4.0, 4.2)
 
     plan = build_import_plan(tmp_path, db)
 
@@ -232,8 +232,8 @@ def test_build_plan_prefers_latest_campaign_before_lower_loss(tmp_path):
 def test_apply_import_plan_is_idempotent_and_preserves_auto_score(tmp_path):
     db = tmp_path / "socbench.db"
     _make_db(db)
-    _write_result(tmp_path / "kaggle_socbench" / "results" / "a_v22" / "loss_curve.json", "dataset/a", 4.0, 4.2)
-    _write_result(tmp_path / "kaggle_socbench" / "results" / "b_v22" / "loss_curve.json", "dataset/b", 8.0, 8.1)
+    _write_result(tmp_path / "training_results" / "validated" / "a_v22" / "result.json", "dataset/a", 4.0, 4.2)
+    _write_result(tmp_path / "training_results" / "validated" / "b_v22" / "result.json", "dataset/b", 8.0, 8.1)
     plan = build_import_plan(tmp_path, db)
 
     assert apply_import_plan(plan, db) == 2
@@ -255,7 +255,7 @@ def test_apply_import_plan_is_idempotent_and_preserves_auto_score(tmp_path):
 def test_apply_import_plan_can_create_training_only_dataset_rows(tmp_path):
     db = tmp_path / "socbench.db"
     _make_db(db)
-    _write_result(tmp_path / "kaggle_socbench" / "results" / "orphan_v22" / "loss_curve.json", "dataset/missing", 4.0, 4.2)
+    _write_result(tmp_path / "training_results" / "validated" / "orphan_v22" / "result.json", "dataset/missing", 4.0, 4.2)
     plan = build_import_plan(tmp_path, db, include_orphans=True)
 
     assert apply_import_plan(plan, db, create_missing_datasets=True) == 1

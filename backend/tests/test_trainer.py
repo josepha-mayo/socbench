@@ -46,6 +46,11 @@ def test_generate_train_script_contains_required_markers(trainer_script):
     assert "SOCBENCH_TRAIN_COMPILE" in trainer_script
     assert "Set SOCBENCH_ALLOW_CPU_FALLBACK=1 only for explicit smoke/debug runs" in trainer_script
     assert "with torch.inference_mode():" in trainer_script
+    assert 'required_world_size = int(os.environ.get("SOCBENCH_REQUIRED_WORLD_SIZE", "1"))' in trainer_script
+    assert "torch.distributed.all_reduce(val_loss_tensor" in trainer_script
+    assert "tokens_per_sec = tokens_per_iter / dt" in trainer_script
+    assert "torch.distributed.barrier()" in trainer_script
+    assert 'init_process_group("gloo")' not in trainer_script
     assert "{str(TRAIN.compile)}" not in trainer_script
 
 
@@ -62,10 +67,9 @@ def test_generated_train_script_has_expected_data_validation(trainer_script):
     assert "the dataset will repeat" in trainer_script.lower()
 
 
-def test_generated_train_script_has_ddp_fallback(trainer_script):
+def test_generated_train_script_requires_nccl_ddp(trainer_script):
     assert 'init_process_group("nccl"' in trainer_script
-    assert 'init_process_group("gloo"' in trainer_script
-    assert "falling back to gloo backend" in trainer_script.lower()
+    assert 'init_process_group("gloo"' not in trainer_script
 
 
 def test_save_training_script():

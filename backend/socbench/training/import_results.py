@@ -1,4 +1,4 @@
-"""Recover GPT-2 proxy training results from Kaggle artifacts."""
+"""Import validated GPT-2 proxy-training result artifacts."""
 
 from __future__ import annotations
 
@@ -13,11 +13,10 @@ from pathlib import Path
 from typing import Iterable
 
 DEFAULT_PATTERNS = (
-    "kaggle_socbench/results/*/loss_curve.json",
-    "kaggle_socbench/results_v12/*.json",
-    "backend/kaggle_training_outputs/**/*.log",
-    "backend/kaggle_training_outputs/**/socbench_result.json",
-    "backend/kaggle_training_outputs/**/loss_curve.json",
+    "training_results/validated/*_v*/result.json",
+    "backend/training_outputs/**/*.log",
+    "backend/training_outputs/**/socbench_result.json",
+    "backend/training_outputs/**/loss_curve.json",
 )
 
 
@@ -355,7 +354,7 @@ def apply_import_plan(plan: ImportPlan, db_path: Path, create_missing_datasets: 
                     (
                         dataset_id,
                         dataset_id,
-                        "Recovered from historical Kaggle training artifact; automated Socbench scoring pending.",
+                        "Recovered from a validated external training artifact; automated Socbench scoring pending.",
                         _json(["recovered-training-artifact"]),
                     ),
                 )
