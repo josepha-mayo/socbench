@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "dataset_id": "HuggingFaceCode/stack-v3-train",
+  "run_type": "real",
+  "status": "complete",
+  "completed_at": "2026-08-09T06:15:50.627511+00:00",
+  "best_val_loss": 10.949823379516602,
+  "final_val_loss": 57.019287109375,
+  "total_iters": 1907,
+  "tokens_seen": 999817216,
+  "hardware": {
+    "cuda_device_count": 2,
+    "gpu_names": ["Tesla T4", "Tesla T4"],
+    "distributed_world_size": 2,
+    "launcher": "torch.distributed.run"
+  },
+  "validation_outcome": "Validation loss diverged after the initial checkpoint; retained as a real negative result."
+}

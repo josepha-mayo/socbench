@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "dataset_id": "HuggingFaceCode/stack-v3-train",
+  "run_type": "real",
+  "completed_at": "2026-08-09T06:15:50.627511+00:00",
+  "tokens_budget": 1000000000,
+  "n_tokens": 999817216,
+  "parameters": 124439808,
+  "max_iters": 1907,
+  "final_val_loss": 57.019287109375,
+  "best_val_loss": 10.949823379516602,
+  "loss_curve": [
+    {"step": 0, "train_loss": null, "val_loss": 10.949823379516602},
+    {"step": 500, "train_loss": null, "val_loss": 12.017999649047852},
+    {"step": 1000, "train_loss": null, "val_loss": 31.810470581054688},
+    {"step": 1500, "train_loss": null, "val_loss": 49.343544006347656},
+    {"step": 1906, "train_loss": null, "val_loss": 57.019287109375}
+  ],
+  "gpu": "2x Tesla T4",
+  "num_gpus": 2,
+  "distributed_world_size": 2,
+  "launcher": "torch.distributed.run",
+  "batch_size": 8,
+  "gradient_accumulation_steps": 64,
+  "effective_batch_size": 512,
+  "evidence_sha256": {
+    "hardware": "08B37CB3AF08205E2983D5C969D748A674E0D747EA14FA4E85E746D37519A326",
+    "loss_curve": "35D11552EB85AEC618738EF755DEE9871418CBF8E6EDFD7D2974431B73C465AD",
+    "eval_results": "2E314320D254BA95BEB09F41128D622B0EF32199313A7EE17D76302DA39A8C87",
+    "training_log": "739713E62C6779D3BEF5EB1F0E81033D4E7D29AFA5080DCFB5A73AEE0ABAF29E"
+  }
+}

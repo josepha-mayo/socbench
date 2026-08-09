@@ -44,11 +44,12 @@ The recovered proxy results also include `Salesforce/wikitext`,
 `allenai/c4`, `HuggingFaceFW/fineweb-edu`, and
 `NousResearch/hermes-function-calling-v1`.
 
-The latest validated real-run artifacts are the v23 results for `allenai/c4` and
+The latest validated real-run artifacts are the v23 results for `allenai/c4`,
+`HuggingFaceCode/stack-v3-train`, `HuggingFaceFW/fineweb-edu`, and
 `NousResearch/hermes-function-calling-v1`. Each reached 999,817,216 observed tokens
-with two Tesla T4 devices and distributed world size 2. Both are retained as negative
-results: C4 diverged after its initial validation, while Hermes improved at the first
-checkpoint and then diverged. Incomplete campaign runs are not published as results.
+with two Tesla T4 devices and distributed world size 2. All four are retained as
+negative results because their validation curves ultimately diverged. Incomplete
+campaign runs are not published as results.
 
 Pending rows are dynamic: the API pulls the current top Hugging Face trending and
 most-downloaded datasets, removes anything already trained, and marks the rest as
