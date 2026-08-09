@@ -57,7 +57,7 @@ export default function AboutPage() {
             ["Freshness", "How recently updated, actively maintained"],
             ["Contamination", "13-gram overlap with eval benchmarks (GSM8K, MMLU, HumanEval, MBPP)"],
             ["Repetition", "Exact-row duplication rate &mdash; catches slop and synthetic padding"],
-            ["Training Impact", "GPT-2 124M loss curves, perplexity, convergence"],
+            ["Training Impact", "GPT-2 124M initial, best, and final loss with explicit outcomes"],
           ].map(([label, desc]) => (
             <div key={label} className="border border-arxiv-border rounded p-3">
               <strong className="font-sans">{label}</strong>
@@ -126,7 +126,7 @@ export default function AboutPage() {
           {[
             ["Level 1 &mdash; Automatic Scoring", "Cheap, fast heuristics. Gopher rules, FineWeb/DCLM filters, diversity, documentation, freshness, popularity."],
             ["Level 2 &mdash; Contamination & Repetition", "13-gram overlap with eval benchmarks (GSM8K, MMLU, HumanEval, MBPP). Exact-row duplication."],
-            ["Level 3 &mdash; Training Impact", "Train GPT-2 124M on the dataset for 1B tokens. Final loss, perplexity, convergence, and relative quality."],
+            ["Level 3 &mdash; Training Impact", "Calibrate GPT-2 124M, then authorize up to 1B tokens only after the validation gate passes. Publish the full curve and outcome."],
           ].map(([title, desc]) => (
             <div key={title} className="border border-arxiv-border rounded p-3">
               <strong className="font-sans text-sm block mb-1" dangerouslySetInnerHTML={{ __html: title }} />
@@ -138,9 +138,10 @@ export default function AboutPage() {
         <h3 className="text-lg font-serif font-bold pt-4">Training Impact (Stage 3)</h3>
         <p className="text-arxiv-gray">
           For top-tier datasets only. Train GPT-2 124M from scratch on each dataset
-          with a standardized token budget. Verified runs contribute loss curves,
-          perplexity, convergence, token counts, and relative quality to the public
-          dataset evidence. Research shows 125M proxy models can
+          with a standardized token budget after a bounded calibration pass. Verified runs
+          contribute initial, best, and final loss, explicit outcomes, token counts, and
+          compact evidence to the public dataset record. Diverged runs remain visible as
+          negative evidence and receive no positive training score. Research shows 125M proxy models can
           predict data quality scaling for larger models (Ankner et al., 2024).
           This stage earns its compute &mdash; it runs only when the result answers a
           question nobody else can answer.
@@ -154,7 +155,7 @@ export default function AboutPage() {
         </p>
         <div className="space-y-2">
           <pre className="overflow-x-auto rounded border border-arxiv-border bg-white p-3 text-xs font-mono text-arxiv-dark">
-            <code>{`cd C:\\Users\\USER\\.vscode\\vibe\\backend
+            <code>{`cd backend
 python -m socbench score Salesforce/wikitext --sample-size 1000`}</code>
           </pre>
           <pre className="overflow-x-auto rounded border border-arxiv-border bg-white p-3 text-xs font-mono text-arxiv-dark">
@@ -171,13 +172,13 @@ python -m socbench score Salesforce/wikitext --sample-size 1000`}</code>
           corpus plus a machine-readable rejection summary.
         </p>
         <pre className="overflow-x-auto rounded border border-arxiv-border bg-white p-3 text-xs font-mono text-arxiv-dark">
-          <code>{`cd C:\\Users\\USER\\.vscode\\vibe\\backend
+          <code>{`cd backend
 python -m socbench audit Salesforce/wikitext --output-dir audit_outputs/wikitext --max-rows 100000`}</code>
         </pre>
 
         <h3 className="text-lg font-serif font-bold pt-4">Discovery Pipeline</h3>
         <p className="text-arxiv-gray">
-          We scan HuggingFace for new and trending datasets daily. Only datasets above
+          On-demand discovery scans HuggingFace for new and trending datasets. Only datasets above
           minimum thresholds (&ge;1K downloads, &ge;10 likes, &ge;1K rows) enter the pipeline.
           Automated scoring runs instantly. Contamination checks flag leakage.
           Top-tier datasets queue for training impact measurement.

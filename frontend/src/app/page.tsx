@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { TrainingImpact, type TrainingEntry } from "@/components/training-impact";
 
 interface Dataset {
   rank: number;
@@ -24,29 +25,6 @@ interface Dataset {
   category: string;
   created_at: string | null;
 }
-
-interface TrainingEntry {
-  training_rank: number | null;
-  hf_id: string;
-  name: string;
-  category: string;
-  category_label?: string;
-  training_score: number | null;
-  combined_score: number | null;
-  quality: number | null;
-  final_val_loss: number | null;
-  perplexity: number | null;
-  tokens_seen: number | null;
-  convergence_steps: number | null;
-  loss_curve: number[] | null;
-  downloads: number | null;
-  likes: number | null;
-  created_at: string | null;
-  status: "trained" | "pending";
-  source: "trained" | "trending" | "most_used";
-}
-
-
 
 const CATEGORIES = [
   "All",
@@ -145,186 +123,6 @@ function categorySlug(cat: string): string {
     "Evaluation": "evaluation",
   };
   return map[cat] || "";
-}
-
-function LossCurve({ losses }: { losses: number[] | null }) {
-  if (!losses || !Array.isArray(losses) || losses.length === 0) return null;
-  const clean = losses.filter((x) => typeof x === "number" && !Number.isNaN(x));
-  if (clean.length === 0) return null;
-  const maxLoss = Math.max(...clean);
-  const minLoss = Math.min(...clean);
-  const range = maxLoss - minLoss || 1;
-  return (
-    <div className="flex items-end gap-px h-12 mt-1">
-      {clean.map((l, i) => {
-        const h = ((l - minLoss) / range) * 100;
-        return (
-          <div
-            key={i}
-            className="flex-1 bg-arxiv-red rounded-t-sm min-w-[2px] opacity-80"
-            style={{ height: `${Math.max(h, 2)}%` }}
-            title={`Step ${i}: ${l.toFixed(4)}`}
-          />
-        );
-      })}
-    </div>
-  );
-}
-
-function TrainingImpactView({
-  entries,
-  loading,
-  error,
-}: {
-  entries: TrainingEntry[];
-  loading: boolean;
-  error: string | null;
-}) {
-  const trained = entries.filter((e) => e.status === "trained");
-  const pendingTrending = entries.filter((e) => e.status === "pending" && e.source === "trending");
-  const pendingMostUsed = entries.filter((e) => e.status === "pending" && e.source === "most_used");
-
-  if (loading) {
-    return (
-      <div className="p-8 border border-arxiv-border rounded bg-arxiv-lightgray text-center">
-        <p className="text-arxiv-gray font-sans">Loading training impact data...</p>
-      </div>
-    );
-  }
-  if (error) {
-    return (
-      <div className="p-8 border border-red-200 rounded bg-red-50 text-center">
-        <p className="text-red-700 font-sans font-medium">{error}</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-8">
-      <div className="info-banner">
-        <strong className="text-arxiv-dark">Training Impact</strong> is a higher-level evaluation:
-        each dataset is actually trained on (GPT-2 124M) and scored by the relative validation-loss
-        reduction it produces. Trained datasets are ranked by training score. The top 10 trending
-        and top 10 most-downloaded HuggingFace datasets are queued as <em>pending</em> — they will
-        be trained and scored next.
-      </div>
-
-      {/* Trained datasets */}
-      <div>
-        <h3 className="text-sm font-sans font-bold text-arxiv-dark mb-3 uppercase tracking-wide">
-          Trained Datasets <span className="text-arxiv-gray font-normal">({trained.length})</span>
-        </h3>
-        {trained.length === 0 ? (
-          <p className="text-xs text-arxiv-gray">No trained datasets yet.</p>
-        ) : (
-          <div className="overflow-x-auto border border-arxiv-border rounded">
-            <table className="w-full text-xs font-sans">
-              <thead className="bg-arxiv-lightgray text-arxiv-gray uppercase tracking-wide">
-                <tr>
-                  <th className="text-left px-3 py-2">#</th>
-                  <th className="text-left px-3 py-2">Dataset</th>
-                  <th className="text-left px-3 py-2">Category</th>
-                  <th className="text-right px-3 py-2">Training Score</th>
-                  <th className="text-right px-3 py-2">Val Loss</th>
-                  <th className="text-right px-3 py-2">PPL</th>
-                  <th className="text-right px-3 py-2">Tokens</th>
-                  <th className="text-left px-3 py-2">Loss Curve</th>
-                </tr>
-              </thead>
-              <tbody>
-                {trained.map((e, i) => (
-                  <tr key={e.hf_id} className={i % 2 ? "bg-arxiv-lightgray/40" : ""}>
-                    <td className="px-3 py-2 font-mono text-arxiv-gray">{e.training_rank ?? i + 1}</td>
-                    <td className="px-3 py-2">
-                      <a href={`/datasets/${encodeURIComponent(e.hf_id)}`} className="text-arxiv-link hover:text-arxiv-hover no-underline font-medium">
-                        {e.hf_id}
-                      </a>
-                    </td>
-                    <td className="px-3 py-2 text-arxiv-gray">{e.category_label || e.category}</td>
-                    <td className="px-3 py-2 text-right font-mono font-bold text-arxiv-dark">
-                      {e.training_score != null ? e.training_score.toFixed(1) : "—"}
-                    </td>
-                    <td className="px-3 py-2 text-right font-mono">{e.final_val_loss != null ? e.final_val_loss.toFixed(4) : "—"}</td>
-                    <td className="px-3 py-2 text-right font-mono">{e.perplexity != null ? e.perplexity.toFixed(2) : "—"}</td>
-                    <td className="px-3 py-2 text-right font-mono text-arxiv-gray">
-                      {e.tokens_seen != null ? (e.tokens_seen / 1e6).toFixed(1) + "M" : "—"}
-                    </td>
-                    <td className="px-3 py-2"><LossCurve losses={e.loss_curve} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Pending — trending */}
-      <PendingSection
-        title="Pending — Top 10 Trending on HuggingFace"
-        entries={pendingTrending}
-        badgeColor="text-orange-700 bg-orange-50 border-orange-200"
-      />
-
-      {/* Pending — most used */}
-      <PendingSection
-        title="Pending — Top 10 Most Downloaded on HuggingFace"
-        entries={pendingMostUsed}
-        badgeColor="text-blue-700 bg-blue-50 border-blue-200"
-      />
-    </div>
-  );
-}
-
-function PendingSection({
-  title,
-  entries,
-  badgeColor,
-}: {
-  title: string;
-  entries: TrainingEntry[];
-  badgeColor: string;
-}) {
-  return (
-    <div>
-      <h3 className="text-sm font-sans font-bold text-arxiv-dark mb-3 uppercase tracking-wide">
-        {title} <span className="text-arxiv-gray font-normal">({entries.length})</span>
-      </h3>
-      {entries.length === 0 ? (
-        <p className="text-xs text-arxiv-gray">No pending datasets in this category.</p>
-      ) : (
-        <div className="overflow-x-auto border border-arxiv-border rounded">
-          <table className="w-full text-xs font-sans">
-            <thead className="bg-arxiv-lightgray text-arxiv-gray uppercase tracking-wide">
-              <tr>
-                <th className="text-left px-3 py-2">Dataset</th>
-                <th className="text-left px-3 py-2">Category</th>
-                <th className="text-right px-3 py-2">Downloads</th>
-                <th className="text-right px-3 py-2">Likes</th>
-                <th className="text-left px-3 py-2">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map((e, i) => (
-                <tr key={e.hf_id} className={i % 2 ? "bg-arxiv-lightgray/40" : ""}>
-                  <td className="px-3 py-2">
-                    <a href={`https://huggingface.co/datasets/${e.hf_id}`} target="_blank" rel="noopener noreferrer" className="text-arxiv-link hover:text-arxiv-hover no-underline font-medium">
-                      {e.hf_id}
-                    </a>
-                  </td>
-                  <td className="px-3 py-2 text-arxiv-gray">{e.category_label || e.category}</td>
-                  <td className="px-3 py-2 text-right font-mono">{e.downloads?.toLocaleString() ?? "—"}</td>
-                  <td className="px-3 py-2 text-right font-mono">{e.likes ?? "—"}</td>
-                  <td className="px-3 py-2">
-                    <span className={`text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded border ${badgeColor}`}>pending training</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
 }
 
 export default function LeaderboardPage() {
@@ -495,7 +293,7 @@ export default function LeaderboardPage() {
       </div>
 
       {page === "training" ? (
-        <TrainingImpactView
+        <TrainingImpact
           entries={trainingData}
           loading={trainingLoading}
           error={trainingError}

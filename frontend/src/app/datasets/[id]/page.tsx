@@ -26,6 +26,32 @@ interface RecEntry {
   reasoning: string;
 }
 
+interface TrainingDetail {
+  initial_val_loss: number | null;
+  best_val_loss: number | null;
+  final_val_loss: number;
+  relative_improvement: number | null;
+  best_relative_improvement: number | null;
+  run_outcome: "improved" | "stable" | "regressed" | "diverged" | "insufficient_evidence";
+  outcome_reason: string | null;
+  training_score: number | null;
+  convergence_steps: number | null;
+  completed_steps: number | null;
+  tokens_seen: number | null;
+  trained_at: string | null;
+  loss_curve: number[];
+  model_config: {
+    gpu?: string | null;
+    batch_size?: number | null;
+    effective_batch_size?: number | null;
+    num_gpus?: number | null;
+    distributed_world_size?: number | null;
+    run_type?: string | null;
+    source_artifact?: string | null;
+  };
+  eval_scores: Record<string, unknown>;
+}
+
 interface DatasetDetail {
   hf_id: string;
   name: string;
@@ -49,7 +75,7 @@ interface DatasetDetail {
   category_metrics: ScoreDetail[];
   recommendations?: { best_for: RecEntry[]; good_for: RecEntry[]; not_for: RecEntry[] };
   metadata: { downloads: number; likes: number; license: string; created_at?: string | null };
-  training: any;
+  training: TrainingDetail | null;
 }
 
 function toScore(score: number | null | undefined): number {
@@ -96,7 +122,7 @@ function DomainBar({ domains }: { domains: Record<string, number> | null | undef
   );
 }
 
-function LossCurve({ losses }: { losses: number[] | null | undefined }) {
+function LossCurve({ losses, outcome }: { losses: number[] | null | undefined; outcome?: TrainingDetail["run_outcome"] }) {
   if (!losses || !Array.isArray(losses) || losses.length === 0) return null;
   const clean = losses.filter((x) => typeof x === "number" && !Number.isNaN(x));
   if (clean.length === 0) return null;
@@ -110,7 +136,7 @@ function LossCurve({ losses }: { losses: number[] | null | undefined }) {
         return (
           <div
             key={i}
-            className="flex-1 bg-arxiv-red rounded-t-sm min-w-[2px] opacity-80 hover:opacity-100"
+            className={`flex-1 min-w-[2px] opacity-80 hover:opacity-100 ${outcome === "improved" ? "bg-green-600" : outcome === "diverged" ? "bg-red-600" : "bg-gray-500"}`}
             style={{ height: `${Math.max(h, 2)}%` }}
             title={`Step ${i}: ${l.toFixed(4)}`}
           />
@@ -193,6 +219,12 @@ export default function DatasetDetailPage() {
   const repPct = dataset.repetition_pct;
   const sourceUrl = dataset.source_url || `https://huggingface.co/datasets/${displayId}`;
   const createdAt = dataset.metadata?.created_at;
+  const training = dataset.training;
+  const outcomeStyle = training?.run_outcome === "improved"
+    ? "border-green-200 bg-green-50 text-green-800"
+    : training?.run_outcome === "diverged"
+      ? "border-red-200 bg-red-50 text-red-800"
+      : "border-gray-200 bg-gray-50 text-gray-700";
 
   return (
     <div>
@@ -373,51 +405,68 @@ export default function DatasetDetailPage() {
       )}
 
       {/* Training */}
-      {dataset.training && typeof dataset.training.final_val_loss === "number" && (
+      {training && typeof training.final_val_loss === "number" && (
         <div className="border border-arxiv-border rounded p-4 mb-8">
           <h3 className="text-sm font-serif font-bold mb-2">Training Impact (GPT-2 124M, up to 1B tokens)</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm font-sans mb-4">
+          <div className="mb-4 flex flex-wrap items-center gap-2 font-sans text-xs">
+            <span className={`border px-2 py-0.5 font-mono font-bold uppercase ${outcomeStyle}`}>
+              {training.run_outcome.replace("_", " ")}
+            </span>
+            {training.outcome_reason && <span className="text-arxiv-gray">{training.outcome_reason}</span>}
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm font-sans mb-4">
             <div>
-              <div className="text-xs text-arxiv-gray mb-1">Final Val Loss</div>
-              <span className="font-mono font-bold text-arxiv-dark">{dataset.training.final_val_loss.toFixed(4)}</span>
+              <div className="text-xs text-arxiv-gray mb-1">Initial loss</div>
+              <span className="font-mono font-bold text-arxiv-dark">{training.initial_val_loss?.toFixed(4) ?? "-"}</span>
             </div>
             <div>
-              <div className="text-xs text-arxiv-gray mb-1">Perplexity</div>
-              <span className="font-mono font-bold text-arxiv-dark">{Math.exp(dataset.training.final_val_loss).toFixed(2)}</span>
+              <div className="text-xs text-arxiv-gray mb-1">Best loss</div>
+              <span className="font-mono font-bold text-arxiv-dark">{training.best_val_loss?.toFixed(4) ?? "-"}</span>
             </div>
             <div>
-              <div className="text-xs text-arxiv-gray mb-1">Convergence</div>
-              <span className="font-mono font-bold text-arxiv-dark">step {dataset.training.convergence_steps ?? "—"}</span>
+              <div className="text-xs text-arxiv-gray mb-1">Final loss</div>
+              <span className="font-mono font-bold text-arxiv-dark">{training.final_val_loss.toFixed(4)}</span>
             </div>
             <div>
-              <div className="text-xs text-arxiv-gray mb-1">Training Score</div>
-              <span className="font-mono font-bold text-green-700">
-                {Math.round((dataset.training.eval_scores?.normalized_score ?? 0) * 100)}/100
+              <div className="text-xs text-arxiv-gray mb-1">Final change</div>
+              <span className={`font-mono font-bold ${(training.relative_improvement ?? 0) > 0 ? "text-green-700" : "text-red-700"}`}>
+                {training.relative_improvement == null ? "-" : `${training.relative_improvement > 0 ? "+" : ""}${(training.relative_improvement * 100).toFixed(1)}%`}
               </span>
             </div>
-            {dataset.training.model_config && (
+            <div>
+              <div className="text-xs text-arxiv-gray mb-1">Training score</div>
+              <span className="font-mono font-bold text-arxiv-dark">{Math.round((training.training_score ?? 0) * 100)}/100</span>
+            </div>
+            {training.model_config && (
               <>
                 <div>
                   <div className="text-xs text-arxiv-gray mb-1">GPU</div>
-                  <span className="font-mono text-xs text-arxiv-dark">{dataset.training.model_config.gpu || "—"}</span>
+                  <span className="font-mono text-xs text-arxiv-dark">{training.model_config.gpu || "-"}</span>
                 </div>
                 <div>
-                  <div className="text-xs text-arxiv-gray mb-1">Batch Size</div>
-                  <span className="font-mono text-xs text-arxiv-dark">{dataset.training.model_config.batch_size ?? "—"}</span>
+                  <div className="text-xs text-arxiv-gray mb-1">World size</div>
+                  <span className="font-mono text-xs text-arxiv-dark">{training.model_config.distributed_world_size ?? training.model_config.num_gpus ?? "-"}</span>
                 </div>
                 <div>
-                  <div className="text-xs text-arxiv-gray mb-1">Tokens Seen</div>
-                  <span className="font-mono text-xs text-arxiv-dark">{dataset.training.tokens_seen?.toLocaleString() ?? "—"}</span>
+                  <div className="text-xs text-arxiv-gray mb-1">Tokens seen</div>
+                  <span className="font-mono text-xs text-arxiv-dark">{training.tokens_seen?.toLocaleString() ?? "-"}</span>
                 </div>
                 <div>
-                  <div className="text-xs text-arxiv-gray mb-1">FP16</div>
-                  <span className="font-mono text-xs text-arxiv-dark">{dataset.training.model_config.use_fp16 ? "Yes" : "No"}</span>
+                  <div className="text-xs text-arxiv-gray mb-1">Best checkpoint</div>
+                  <span className="font-mono text-xs text-arxiv-dark">step {training.convergence_steps ?? "-"}</span>
+                </div>
+                <div>
+                  <div className="text-xs text-arxiv-gray mb-1">Completed</div>
+                  <span className="font-mono text-xs text-arxiv-dark">{formatDate(training.trained_at)}</span>
                 </div>
               </>
             )}
           </div>
           <div className="text-xs font-sans text-arxiv-gray mb-1">Validation Loss Curve</div>
-          <LossCurve losses={dataset.training.loss_curve} />
+          <LossCurve losses={training.loss_curve} outcome={training.run_outcome} />
+          {training.model_config.source_artifact && (
+            <p className="mt-3 break-all font-mono text-[10px] text-arxiv-gray">Proof: {training.model_config.source_artifact}</p>
+          )}
         </div>
       )}
 
