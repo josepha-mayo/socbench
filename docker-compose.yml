@@ -18,8 +18,8 @@ services:
   api:
     restart: unless-stopped
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
@@ -31,6 +31,8 @@ services:
       HF_TOKEN: ${HF_TOKEN:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
       TRUSTED_HOSTS: ${TRUSTED_HOSTS:-api,localhost,127.0.0.1}
+      SOCBENCH_CATALOG_PATH: /app/catalog/catalog.json
+      SOCBENCH_TRAINING_RESULTS_ROOT: /app
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=3)"]
       interval: 30s

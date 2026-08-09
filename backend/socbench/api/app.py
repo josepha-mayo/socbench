@@ -11,12 +11,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from sqlalchemy import text
 
+from socbench.bootstrap import bootstrap_from_canonical
 from socbench.db import engine, init_db
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    production = os.getenv("APP_ENV", "development").lower() == "production"
+    app.state.bootstrap = await bootstrap_from_canonical(strict=production)
     try:
         yield
     finally:
@@ -92,9 +95,12 @@ def create_app() -> FastAPI:
         try:
             async with engine.connect() as connection:
                 await connection.execute(text("SELECT 1"))
+                dataset_count = await connection.scalar(text("SELECT COUNT(*) FROM datasets"))
+                if not dataset_count:
+                    raise RuntimeError("catalog is empty")
         except Exception as exc:
-            raise HTTPException(status_code=503, detail="database unavailable") from exc
-        return {"status": "ready"}
+            raise HTTPException(status_code=503, detail="database or catalog unavailable") from exc
+        return {"status": "ready", "datasets": dataset_count}
 
     from socbench.api.routes import router
 

@@ -1,223 +1,164 @@
 # Socbench
 
-Socbench is scientific dataset intelligence for model builders. It is designed to answer:
+Socbench is dataset intelligence for model builders. It examines training data before
+compute is committed, scores it across independent quality dimensions, audits and cleans
+raw corpora, records contamination evidence, and publishes validated proxy-training
+outcomes.
 
-> Which datasets should I train on, and why?
+The product consists of a FastAPI service, a Next.js interface, a Python CLI, a canonical
+55-dataset scored catalog, and compact provider-neutral training evidence. A clean database
+bootstraps from tracked JSON, so production does not depend on a developer's SQLite file.
 
-It is not just a model leaderboard. Socbench scores datasets across quality, diversity,
-utility, documentation, popularity, freshness, PII safety, contamination risk, and GPT-2
-124M proxy-training impact.
+## Current Evidence
 
-## What It Does
+- 55 scored catalog datasets
+- 55 leaderboard records
+- 16 validated GPT-2 124M proxy-training records
+- 10 improved runs and 6 divergent runs
+- Six completed dual-T4, approximately 1B-token negative results retained as evidence
+- SQLite for local development and PostgreSQL for production
 
-- Discovers and classifies Hugging Face datasets.
-- Scores datasets with automated quality, format, token, PII, code, and metadata checks.
-- Tracks known dataset provenance, including models and papers associated with datasets.
-- Exposes a FastAPI backend for leaderboards, dataset details, discovery, eval analysis,
-  trending datasets, and evaluation requests.
-- Serves a Next.js frontend with leaderboard, training, eval, trending, discover, and
-  dataset detail views.
-- Imports validated GPT-2 proxy-training results into the SQLite leaderboard.
-- Keeps pending training candidates visible from live Hugging Face trending and downloads
-  scans, with caching so the training page stays responsive.
+Training score is not a cross-run min-max ranking. It is the positive final validation-loss
+reduction for that dataset:
 
-## Current Verified Data State
-
-The local development database is `backend/socbench.db`. It is runtime state and is ignored
-by Git.
-
-As of the latest recovery pass:
-
-- `datasets`: 55
-- `leaderboard`: 55
-- `training_runs`: 16
-- `/api/stats`: returns HTTP 200
-- `/api/training-leaderboard?limit=20`: returns 16 trained rows plus pending candidates
-- `/training`: renders the recovered training leaderboard in the frontend
-
-The recovered trained rows include `tatsu-lab/alpaca`, `EdinburghNLP/xsum`,
-`m-a-p/COIG-CQIA`, `garage-bAInd/Open-Platypus`, `yahma/alpaca-cleaned`,
-`teknium/OpenHermes-2.5`, `WizardLMTeam/WizardLM_evol_instruct_70k`,
-`LDJnr/Capybara`, `HuggingFaceH4/ultrachat_200k`, and `OpenAssistant/oasst1`.
-The recovered proxy results also include `Salesforce/wikitext`,
-`HuggingFaceCode/stack-v3-train`, `r0b0tlab/qwen3.8-max-distillation-50k`,
-`allenai/c4`, `HuggingFaceFW/fineweb-edu`, and
-`NousResearch/hermes-function-calling-v1`.
-
-The latest validated real-run artifacts are the v23 results for `Salesforce/wikitext`,
-`allenai/c4`, `HuggingFaceCode/stack-v3-train`, `HuggingFaceFW/fineweb-edu`,
-`NousResearch/hermes-function-calling-v1`, and
-`r0b0tlab/qwen3.8-max-distillation-50k`. Each reached 999,817,216 observed tokens
-with two Tesla T4 devices and distributed world size 2. All six are retained as
-negative results because their validation curves ultimately diverged. Incomplete
-campaign runs are not published as results.
-
-Pending rows are dynamic: the API pulls the current top Hugging Face trending and
-most-downloaded datasets, removes anything already trained, and marks the rest as
-`pending`. Those are the datasets left to train next. Check them with:
-
-```powershell
-cd C:\Users\USER\.vscode\vibe
-python -c "import requests; data=requests.get('http://localhost:8000/api/training-leaderboard?limit=100', timeout=20).json(); print([x['hf_id'] for x in data if x['status']=='pending'])"
+```text
+relative_improvement = (initial_val_loss - final_val_loss) / initial_val_loss
+training_score = relative_improvement when outcome == improved, otherwise 0
+combined_score = 0.9 * auto_score + 0.1 * training_score
 ```
+
+Outcomes are `improved`, `stable`, `regressed`, `diverged`, or
+`insufficient_evidence`. A transient best checkpoint never turns a regressed final run into
+a positive result.
+
+## Capabilities
+
+- Discover and classify Hugging Face datasets by training purpose.
+- Score quality, diversity, utility, documentation, popularity, freshness, PII safety,
+  contamination, and repetition.
+- Run a seven-stage deep audit that emits cleaned JSONL and a machine-readable report.
+- Track dataset provenance and evaluation benchmark risk.
+- Accept public or private evaluation requests through the API and UI.
+- Import and validate compact training results, including exact-run evidence hashes.
+- Reconstruct a clean database from the canonical catalog and validated results.
+- Expose dataset, leaderboard, training, discovery, evaluation, and health APIs.
 
 ## Repository Layout
 
 ```text
 backend/
   socbench/
-    api/              FastAPI app and routes
-    audit/            Seven-stage dataset cleaning and decontamination audit
-    contamination/    N-gram contamination checker
-    discovery/        Hugging Face scanner and qualifier
-    evals/            Eval benchmark intelligence
-    scoring/          Automated dataset scorers
-    training/         GPT-2 training config, script generator, importer
-  tests/              Backend unit tests
-frontend/
-  src/app/            Next.js App Router UI
+    api/                 FastAPI application and routes
+    audit/               Deep cleaning and decontamination pipeline
+    contamination/       Benchmark overlap checks
+    discovery/           Hugging Face discovery and qualification
+    evals/               Evaluation benchmark intelligence
+    scoring/             Automated scoring dimensions
+    training/            Data preparation, guarded trainer, outcomes, importer
+    bootstrap.py         Canonical clean-database bootstrap and catalog export
+  tests/                 Backend test suite
+catalog/catalog.json     Canonical scored catalog, without runtime IDs
+frontend/src/            Next.js application
 training_results/
-  validated/          Canonical loss-curve and evaluation artifacts
-PLAN.md               Product/architecture notes
-docker-compose.yml    Local Postgres/API/frontend composition
+  validated/             Compact canonical result and evaluation-proof JSON
+docker-compose.yml       PostgreSQL, API, and frontend production-like stack
 ```
+
+Runtime databases, credentials, external-compute source, raw logs, checkpoints, caches,
+and downloaded provider outputs are intentionally ignored.
 
 ## Local Setup
 
-### Backend
+Requirements:
+
+- Python 3.11 or newer
+- Node.js 20 or newer
+- npm
+
+Install and start the API:
 
 ```powershell
-cd C:\Users\USER\.vscode\vibe\backend
+cd backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install -U pip
+python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
 python -m uvicorn socbench.api.app:app --host 127.0.0.1 --port 8000
 ```
 
-The backend defaults to SQLite at `backend/socbench.db` when launched from the
-`backend` directory. For Postgres, set:
+On first startup, an empty local `backend/socbench.db` is populated from
+`catalog/catalog.json` and `training_results/validated`. Existing databases are left intact.
+
+In another terminal, install and start the UI:
 
 ```powershell
-$env:DATABASE_URL = "postgresql+asyncpg://socbench:socbench@localhost:5432/socbench"
-```
-
-### Frontend
-
-```powershell
-cd C:\Users\USER\.vscode\vibe\frontend
-npm install
+cd frontend
+npm ci
 npm run dev
 ```
 
-The frontend rewrites `/api/*` to the backend. Configure the target with either:
+Open `http://localhost:3000`. The UI rewrites `/api/*` to
+`SOCBENCH_API_URL`, which defaults to `http://localhost:8000`.
+
+Portable Windows launchers are also available after dependencies are installed:
 
 ```powershell
-$env:SOCBENCH_API_URL = "http://localhost:8000"
+.\run_api.bat
+.\run_fe.bat
 ```
 
-or:
+## Score Any Dataset
+
+Score a public Hugging Face dataset from the CLI:
 
 ```powershell
-$env:NEXT_PUBLIC_API_URL = "http://localhost:8000"
-```
-
-Then open:
-
-```text
-http://localhost:3000
-http://localhost:3000/training
-```
-
-## Verification
-
-Run the backend checks:
-
-```powershell
-cd C:\Users\USER\.vscode\vibe\backend
-python -m compileall socbench
-python -m pytest
-```
-
-Run the frontend checks:
-
-```powershell
-cd C:\Users\USER\.vscode\vibe\frontend
-npm audit --audit-level=high
-npm run lint
-npx tsc --noEmit
-npm run build
-```
-
-Check live API health:
-
-```powershell
-python -c "import requests; print(requests.get('http://localhost:8000/api/stats', timeout=10).json())"
-python -c "import requests; print(len(requests.get('http://localhost:8000/api/training-leaderboard?limit=20', timeout=20).json()))"
-python -c "import requests; print(len(requests.get('http://localhost:3000/api/training-leaderboard?limit=20', timeout=20).json()))"
-```
-
-## Scoring A Dataset
-
-Anyone can run a Socbench score for a Hugging Face dataset ID from the CLI or API.
-The command fetches live metadata/samples, classifies the dataset, computes the
-multi-dimension score, checks contamination, and prints the result.
-
-CLI:
-
-```powershell
-cd C:\Users\USER\.vscode\vibe\backend
+cd backend
 python -m socbench score Salesforce/wikitext --sample-size 1000
 ```
 
-Equivalent legacy command:
+Use the HTTP API:
 
 ```powershell
-python -m socbench assess Salesforce/wikitext --sample-size 1000
+Invoke-RestMethod -Method Post `
+  "http://localhost:8000/api/datasets/Salesforce/wikitext/score?sample_size=1000"
 ```
 
-Live API:
-
-```powershell
-Invoke-RestMethod -Method Post "http://localhost:8000/api/datasets/Salesforce/wikitext/score?sample_size=1000"
-```
-
-Open a dataset page or score on demand through the frontend:
-
-```text
-http://localhost:3000/datasets/Salesforce/wikitext
-```
+The live scoring path fetches metadata and bounded samples, classifies the dataset, runs
+the scoring suites, checks contamination, and returns structured JSON. `sample_size` is
+bounded by the API to 100 through 100,000 rows.
 
 ## Deep Dataset Audit
 
-Use `audit` when the objective is a trainable, cleaned dataset rather than a
-leaderboard score. It runs all seven audit stages and writes both the balanced
-JSONL output and an auditable JSON summary:
+The audit command is for producing a cleaned training corpus, not merely a leaderboard
+score. Its stages are:
 
-1. license policy
-2. language detection
-3. code syntax validation when applicable
-4. evaluation-bank decontamination
-5. exact and near-duplicate removal
-6. token-length filtering
-7. seeded per-language water-filling rebalancing
+1. License policy enforcement
+2. Language detection
+3. Code syntax validation when applicable
+4. Evaluation-bank decontamination
+5. Exact and near-duplicate removal
+6. Token-length filtering
+7. Seeded per-language water-filling rebalance
 
-The default audit uses the built-in evaluation-bank benchmarks. Give it a local
-`--eval-bank-dir` to add or replace those checks with your own JSON/JSONL eval
-corpora.
+Run a full bounded audit:
 
 ```powershell
-cd C:\Users\USER\.vscode\vibe\backend
-python -m socbench audit Salesforce/wikitext --output-dir audit_outputs/wikitext --max-rows 100000
+cd backend
+python -m socbench audit Salesforce/wikitext `
+  --output-dir audit_outputs/wikitext `
+  --max-rows 100000
 ```
 
-For a bounded local verification pass:
+Run a small verification audit:
 
 ```powershell
-python -m socbench audit Salesforce/wikitext --output-dir audit_outputs/wikitext-smoke --max-rows 1000 --output-size 500
+python -m socbench audit Salesforce/wikitext `
+  --output-dir audit_outputs/wikitext-smoke `
+  --max-rows 1000 `
+  --output-size 500
 ```
 
-The command creates:
+Outputs:
 
 ```text
 audit_outputs/wikitext/
@@ -225,152 +166,181 @@ audit_outputs/wikitext/
   audit_summary.json
 ```
 
-## Eval-Proof Export
+Pass `--eval-bank-dir` to use local `.json`, `.jsonl`, `.txt`, or `.md` evaluation
+corpora in addition to the built-in bounded benchmark sources.
 
-Generate reproducible proof JSON files for every dataset currently in the database:
+## API
+
+Important routes:
+
+```text
+GET  /healthz
+GET  /readyz
+GET  /api/stats
+GET  /api/leaderboard
+GET  /api/training-leaderboard
+GET  /api/datasets/{owner}/{dataset}
+POST /api/datasets/{owner}/{dataset}/score
+GET  /api/discover
+POST /api/request-evaluation
+```
+
+`/healthz` is process liveness. `/readyz` verifies both database connectivity and a
+non-empty canonical catalog. Interactive OpenAPI docs are available at `/docs` in
+development and disabled in production.
+
+## Training Methodology
+
+Socbench generates a standalone GPT-2 124M DDP trainer. The guarded defaults are:
+
+- learning rate `3e-4`, AdamW epsilon `1e-8`
+- per-device batch `8`, gradient accumulation `64`
+- FP16 autocast with gradient scaling
+- `torch.compile` disabled by default
+- validation under inference mode
+- finite-gradient checks and synchronized DDP validation
+- maximum planned dataset repetition `8x` unless explicitly reviewed
+- calibration at 100 optimizer iterations
+- minimum calibration improvement `0.5%`
+- abort after two validation checks more than `5%` above baseline
+
+Generated training scripts stop after calibration by default. A full token-budget run
+requires explicit authorization in the execution environment:
 
 ```powershell
-cd C:\Users\USER\.vscode\vibe\backend
+$env:SOCBENCH_FULL_RUN = "1"
+```
+
+Excessive dataset repetition is a separate explicit override:
+
+```powershell
+$env:SOCBENCH_ALLOW_EXCESSIVE_REPETITION = "1"
+```
+
+Do not set either flag until the calibration result and token/repetition math have been
+reviewed. External GPU accounts, launch metadata, generated provider kernels, raw logs,
+and credentials are operations data and do not belong in this repository.
+
+## Validated Result Import
+
+Canonical artifacts live at:
+
+```text
+training_results/validated/<dataset>_v<campaign>/result.json
+training_results/validated/<dataset>_v<campaign>/eval_results.json
+```
+
+Preview an import:
+
+```powershell
+cd backend
+python -m socbench.training.import_results --include-orphans
+```
+
+Apply it to the local SQLite database:
+
+```powershell
+python -m socbench.training.import_results `
+  --include-orphans `
+  --create-missing-datasets `
+  --apply
+```
+
+The importer accepts canonical files only by default. It validates curve completeness,
+final metrics, declared outcomes, real-run proof files, and SHA-256 digest format. It is
+idempotent and records the best checkpoint separately from completed steps.
+
+## Catalog And Proofs
+
+Export the current non-training catalog after an intentional curation change:
+
+```powershell
+cd backend
+python -m socbench.bootstrap export --output ..\catalog\catalog.json
+```
+
+Generate local per-dataset evaluation proofs:
+
+```powershell
 python -m socbench export-proofs --output-dir ..\eval-proof
 ```
 
-This writes:
-
-```text
-eval-proof/
-  manifest.json
-  <org>/<dataset>/dataset.json
-```
-
-Each `dataset.json` contains the dataset metadata, leaderboard dimensions,
-individual scorer details, contamination rows, and latest training-run provenance
-when available. The export directory is local runtime output and is ignored by Git.
-
-## Training Result Import
-
-Validated external training results are compact JSON provenance files under
-`training_results/validated`, not model checkpoints. One canonical artifact per
-dataset/campaign is kept. Account credentials, launch configuration, logs, and
-generated runner files stay outside this repository.
-
-Dry-run an import plan:
-
-```powershell
-cd C:\Users\USER\.vscode\vibe\backend
-python -m socbench.training.import_results
-```
-
-Apply recovered results:
-
-```powershell
-python -m socbench.training.import_results --include-orphans --create-missing-datasets --apply
-```
-
-The importer is idempotent. It validates artifact completeness, keeps provenance in
-`model_config.source_artifact`, upserts `training_runs`, and globally recomputes
-`training_score` across every current complete run so incremental imports cannot leave
-mixed normalization states. It preserves the combined score formula:
-
-```text
-combined_score = 0.9 * auto_score + 0.1 * training_score
-```
-
-## External Training Result Recovery
-
-Socbench publishes only validated training results and their proof exports. GPU
-accounts, kernel configuration, generated training files, and run logs are
-local operational concerns and are excluded from the product repository.
-
-Import the compact result artifacts and regenerate public evidence with:
-
-```powershell
-cd C:\Users\USER\.vscode\vibe\backend
-python -m socbench.training.import_results --include-orphans --create-missing-datasets --apply
-python -m socbench export-proofs --output-dir ..\eval-proof
-```
-
-The importer validates loss curves and evaluation metrics, records provenance in
-`training_runs`, recomputes the training and combined leaderboard scores, and
-the proof export contains the latest verified training evidence for each dataset.
-
-## Catalog Curation
-
-The canonical seed catalog is intentionally training-data first. Trained rows are
-protected when curating the live SQLite database. The August 3, 2026 cleanup
-dropped five untrained low-signal rows from the local runtime catalog:
-
-```text
-HuggingFaceH4/llava-instruct-mix-vsft
-LLM-LAT/harmful-dataset
-Skywork/Skywork-Reward-Preference-80K-v0.2
-jondurbin/airoboros-2.2.1
-princeton-nlp/llama3-ultrafeedback-armorm
-```
-
-They were replaced with stronger live candidates:
-
-```text
-allenai/c4
-HuggingFaceCode/stack-v3-train
-Qyrou/reasoning-corpus-4K-5M-v1
-XYZAILab/XYZ-Aquila-SFT
-r0b0tlab/qwen3.8-max-distillation-50k
-```
-
-Before live catalog mutation, back up `backend/socbench.db`; the cleanup created
-`backend/socbench.before_catalog_swap_20260803T103614Z.db`.
+The catalog is tracked and bootstraps production. `eval-proof/` is generated runtime
+output and ignored; compact canonical training proofs remain under `training_results`.
 
 ## Docker Compose
 
+Create local production settings and replace both password placeholders:
+
 ```powershell
-cd C:\Users\USER\.vscode\vibe
 Copy-Item .env.example .env
-# Replace both password placeholders. URL-encode reserved characters in DATABASE_URL.
+docker compose config
 docker compose up --build
 ```
 
 Services:
 
-- Postgres is private to the Compose network.
-- API: `http://localhost:8000`
 - Frontend: `http://localhost:3000`
+- API: `http://localhost:8000`
+- PostgreSQL: private to the Compose network
 
-Readiness checks:
+The API image includes the canonical catalog and validated training evidence. A new
+PostgreSQL volume is populated automatically and idempotently. Both application images
+run as non-root users and expose health checks.
+
+Production environment variables:
+
+```text
+APP_ENV=production
+DATABASE_URL=postgresql+asyncpg://...
+TRUSTED_HOSTS=api.example.com
+CORS_ORIGINS=https://app.example.com
+SOCBENCH_CATALOG_PATH=/app/catalog/catalog.json
+SOCBENCH_TRAINING_RESULTS_ROOT=/app
+HF_TOKEN=optional-private-dataset-token
+```
+
+`TRUSTED_HOSTS` is required in production. Wildcard production CORS is rejected.
+
+## Verification
+
+Backend:
+
+```powershell
+cd backend
+python -m compileall socbench
+python -m ruff check socbench tests
+python -m pytest
+```
+
+Frontend:
+
+```powershell
+cd frontend
+npm audit --audit-level=high
+npm run lint
+npx tsc --noEmit
+npm run build
+```
+
+Live end-to-end checks:
 
 ```powershell
 Invoke-RestMethod http://localhost:8000/healthz
 Invoke-RestMethod http://localhost:8000/readyz
+Invoke-RestMethod http://localhost:8000/api/stats
+Invoke-RestMethod "http://localhost:8000/api/training-leaderboard?limit=100"
+Invoke-WebRequest http://localhost:3000/training -UseBasicParsing
 ```
 
-The production images use non-root users, the frontend runs the standalone Next.js
-server, and the API waits for a healthy database. Set `CORS_ORIGINS` to browser
-origins allowed to call the API and `TRUSTED_HOSTS` to the API host names. Both are
-comma-separated and production defaults are fail-closed.
+## Production Boundary
 
-## Production Notes
+Commit source, tests, documentation, the canonical catalog, and compact validated
+result/proof JSON. Never commit local databases, model checkpoints, raw provider logs,
+account names, credentials, generated launch code, downloaded provider outputs, or
+temporary audit corpora.
 
-- Do not commit `backend/socbench.db`; it is local runtime state.
-- Commit source, tests, docs, and small recovered provenance JSONs.
-- Keep all external compute credentials and operations outside the repository.
-- Set `DATABASE_URL` for production Postgres.
-- Set `SOCBENCH_API_URL` for frontend deployments.
-- Set `APP_ENV=production`, `TRUSTED_HOSTS`, and the narrowest practical `CORS_ORIGINS`.
-- Use `/healthz` for liveness and `/readyz` for database-backed readiness.
-- Run backend tests, frontend lint/typecheck/build, and npm audit before release.
-
-## Known Gaps
-
-These are not finished yet:
-
-- Audit decontamination now has a local n-gram eval-bank index for `.json`, `.jsonl`,
-  `.txt`, and `.md` benchmark files, plus a bounded Hugging Face benchmark fallback.
-  Full MinHash/LSH scale-out and curated eval-bank coverage are still future work.
-- Eval-proof export exists for scored datasets, but proofs should be regenerated after
-  every catalog curation/training import batch.
-- `teknium/OpenHermes-2.5` and `LDJnr/Capybara` have real recovered training scores,
-  but their automated scoring rows were restored minimally because Hugging Face sample
-  fetching failed during recovery.
-
-The restored training leaderboard is displaying and the local catalog is curated.
-Remaining research work is larger-scale decontamination coverage and regenerating
-proof exports whenever a validated training-result batch is imported.
+The six approximately 1B-token dual-T4 campaign results are negative evidence, not
+successful model improvements. They remain visible, explicitly labeled `diverged`, and
+score zero. No additional GPU run should be launched without a reviewed calibration and
+explicit authorization.

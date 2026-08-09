@@ -6,8 +6,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-COPY pyproject.toml README.md ./
-COPY socbench ./socbench
+COPY backend/pyproject.toml backend/README.md ./
+COPY backend/socbench ./socbench
+COPY catalog ./catalog
+COPY training_results/validated ./training_results/validated
 RUN pip install --no-cache-dir . \
     && addgroup --system socbench \
     && adduser --system --ingroup socbench socbench
