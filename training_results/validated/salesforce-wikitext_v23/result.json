@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "dataset_id": "Salesforce/wikitext",
+  "run_type": "real",
+  "completed_at": "2026-08-09T06:56:58.430350+00:00",
+  "tokens_budget": 1000000000,
+  "n_tokens": 999817216,
+  "parameters": 124439808,
+  "max_iters": 1907,
+  "final_val_loss": 66.52200317382812,
+  "best_val_loss": 10.944324493408203,
+  "loss_curve": [
+    {"step": 0, "train_loss": null, "val_loss": 10.944324493408203},
+    {"step": 500, "train_loss": null, "val_loss": 17.700307846069336},
+    {"step": 1000, "train_loss": null, "val_loss": 41.061790466308594},
+    {"step": 1500, "train_loss": null, "val_loss": 59.452484130859375},
+    {"step": 1906, "train_loss": null, "val_loss": 66.52200317382812}
+  ],
+  "gpu": "2x Tesla T4",
+  "num_gpus": 2,
+  "distributed_world_size": 2,
+  "launcher": "torch.distributed.run",
+  "batch_size": 8,
+  "gradient_accumulation_steps": 64,
+  "effective_batch_size": 512,
+  "evidence_sha256": {
+    "hardware": "08B37CB3AF08205E2983D5C969D748A674E0D747EA14FA4E85E746D37519A326",
+    "loss_curve": "8083C74E1BB4834F2ED0D9D80392C330C325E09D506FE41F4802FE0B4A89B4C6",
+    "eval_results": "8CDA2950D4678FB3145EA972FA77F3C0C494A1D0D47173CD2FE4DD25457D0FB6",
+    "training_log": "6F6AFEC9977178FB5C01BD0E299AF3C779A2E1A61A986B501EB49A986049F89D"
+  }
+}
