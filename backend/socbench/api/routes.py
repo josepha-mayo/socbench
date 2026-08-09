@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import math
 import time
 from typing import Annotated, Literal, Optional
 
@@ -28,6 +29,36 @@ _pending_scan_cache: dict[str, object] = {
     "trending": [],
     "most_used": [],
 }
+
+
+def _training_payload(training: TrainingRunRow | None) -> dict | None:
+    if training is None:
+        return None
+    evaluation = training.eval_scores or {}
+    model_config = training.model_config or {}
+    final_loss = training.final_val_loss
+    perplexity = None
+    if final_loss is not None and final_loss < 20:
+        perplexity = round(math.exp(final_loss), 2)
+    return {
+        "final_val_loss": final_loss,
+        "initial_val_loss": evaluation.get("initial_val_loss"),
+        "best_val_loss": evaluation.get("best_val_loss"),
+        "relative_improvement": evaluation.get("relative_improvement"),
+        "best_relative_improvement": evaluation.get("best_relative_improvement"),
+        "run_outcome": evaluation.get("run_outcome", "insufficient_evidence"),
+        "outcome_reason": evaluation.get("outcome_reason"),
+        "scoring_method": evaluation.get("scoring_method"),
+        "training_score": evaluation.get("training_score"),
+        "perplexity": perplexity,
+        "loss_curve": training.loss_curve or [],
+        "convergence_steps": training.convergence_steps,
+        "completed_steps": model_config.get("completed_steps"),
+        "tokens_seen": training.tokens_seen,
+        "model_config": model_config,
+        "eval_scores": evaluation,
+        "trained_at": training.trained_at.isoformat() if training.trained_at else None,
+    }
 
 
 async def _get_training_pending_candidates():
@@ -189,15 +220,9 @@ async def get_dataset(hf_id: str):
                     "downloads": ds.downloads or 0,
                     "likes": ds.likes or 0,
                     "license": ds.license,
+                    "created_at": ds.created_at,
                 },
-                "training": {
-                    "final_val_loss": training.final_val_loss,
-                    "loss_curve": training.loss_curve,
-                    "convergence_steps": training.convergence_steps,
-                    "tokens_seen": training.tokens_seen,
-                    "model_config": training.model_config,
-                    "eval_scores": training.eval_scores,
-                } if training else None,
+                "training": _training_payload(training),
             }
 
     # Not in DB yet — perform a live on-demand examination.
@@ -299,27 +324,25 @@ async def get_training_leaderboard(
             .join(DatasetRow, LeaderboardRow.dataset_id == DatasetRow.id)
             .outerjoin(TrainingRunRow, TrainingRunRow.id == latest_training_id)
             .where(LeaderboardRow.training_score.isnot(None))
-            .order_by(LeaderboardRow.training_score.desc())
+            .order_by(LeaderboardRow.training_score.desc(), TrainingRunRow.trained_at.desc())
             .limit(limit)
         )
         result = await session.execute(stmt)
         rows = result.all()
 
         for i, (lb, ds, tr) in enumerate(rows, start=1):
+            training = _training_payload(tr)
+            cat_key = lb.category or "pretraining-web"
             entries.append({
                 "training_rank": i,
                 "hf_id": ds.hf_id,
                 "name": ds.name,
-                "category": lb.category,
+                "category": cat_key,
+                "category_label": CATEGORIES[cat_key].label if cat_key in CATEGORIES else cat_key,
+                **(training or {}),
                 "training_score": s100(lb.training_score),
                 "combined_score": s100(lb.combined_score),
                 "quality": s100(lb.quality),
-                "final_val_loss": round(tr.final_val_loss, 4) if tr and tr.final_val_loss else None,
-                "perplexity": round(2.71828 ** tr.final_val_loss, 2) if tr and tr.final_val_loss else None,
-                "tokens_seen": tr.tokens_seen if tr else None,
-                "convergence_steps": tr.convergence_steps if tr else None,
-                "loss_curve": tr.loss_curve if tr else None,
-                "model_config": tr.model_config if tr else None,
                 "downloads": ds.downloads,
                 "likes": ds.likes,
                 "created_at": ds.created_at,
@@ -347,11 +370,20 @@ async def get_training_leaderboard(
                 "combined_score": None,
                 "quality": None,
                 "final_val_loss": None,
+                "initial_val_loss": None,
+                "best_val_loss": None,
+                "relative_improvement": None,
+                "best_relative_improvement": None,
+                "run_outcome": None,
+                "outcome_reason": None,
+                "scoring_method": None,
                 "perplexity": None,
                 "tokens_seen": None,
                 "convergence_steps": None,
                 "loss_curve": None,
                 "model_config": None,
+                "eval_scores": None,
+                "trained_at": None,
                 "downloads": ds.downloads,
                 "likes": ds.likes,
                 "created_at": ds.created_at,

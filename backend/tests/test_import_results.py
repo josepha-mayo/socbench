@@ -2,6 +2,8 @@ import json
 import sqlite3
 from pathlib import Path
 
+import pytest
+
 from socbench.training.import_results import (
     apply_import_plan,
     build_import_plan,
@@ -141,7 +143,7 @@ def test_load_training_artifact_accepts_log_marker(tmp_path):
     assert artifact.final_val_loss == 4.2
 
 
-def test_build_plan_accepts_result_summary(tmp_path):
+def test_build_plan_ignores_noncanonical_result_summary(tmp_path):
     root = tmp_path
     db = tmp_path / "socbench.db"
     _make_db(db)
@@ -173,9 +175,8 @@ def test_build_plan_accepts_result_summary(tmp_path):
 
     plan = build_import_plan(root, db)
 
-    assert set(plan.selected) == {"dataset/a"}
-    assert plan.selected["dataset/a"].path.endswith("socbench_result.json")
-    assert plan.selected["dataset/a"].n_tokens == 123456
+    assert plan.selected == {}
+    assert plan.incomplete == []
 
 
 def test_load_training_artifact_accepts_single_step_comparable_curve(tmp_path):
@@ -217,10 +218,20 @@ def test_load_training_artifact_preserves_distributed_evidence(tmp_path):
             "launcher": "torch.distributed.run",
             "gradient_accumulation_steps": 64,
             "effective_batch_size": 512,
-            "evidence_sha256": {"training_log": "abc123"},
+            "evidence_sha256": {"training_log": "a" * 64},
         }
     )
     path.write_text(json.dumps(data), encoding="utf-8")
+    path.with_name("eval_results.json").write_text(
+        json.dumps(
+            {
+                "dataset_id": "dataset/a",
+                "best_val_loss": 4.0,
+                "final_val_loss": 4.2,
+            }
+        ),
+        encoding="utf-8",
+    )
 
     artifact, reason = load_training_artifact(path, root)
 
@@ -233,7 +244,7 @@ def test_load_training_artifact_preserves_distributed_evidence(tmp_path):
     assert artifact.model_config["launcher"] == "torch.distributed.run"
     assert artifact.model_config["gradient_accumulation_steps"] == 64
     assert artifact.model_config["effective_batch_size"] == 512
-    assert artifact.model_config["evidence_sha256"]["training_log"] == "abc123"
+    assert artifact.model_config["evidence_sha256"]["training_log"] == "a" * 64
 
 
 def test_build_plan_selects_best_complete_run_and_reports_orphans(tmp_path):
@@ -279,10 +290,10 @@ def test_apply_import_plan_is_idempotent_and_preserves_auto_score(tmp_path):
 
     assert rows == [(1, 4.2), (2, 8.1)]
     assert len(leaderboard) == 2
-    assert leaderboard[0][1] == 1.0
-    assert leaderboard[0][2] == 0.82
-    assert leaderboard[1][1] == 0.0
-    assert leaderboard[1][2] == 0.36
+    assert leaderboard[0][1] == 0.58
+    assert leaderboard[0][2] == 0.778
+    assert leaderboard[1][1] == pytest.approx(0.19)
+    assert leaderboard[1][2] == pytest.approx(0.379)
 
 
 def test_apply_import_plan_can_create_training_only_dataset_rows(tmp_path):
@@ -339,6 +350,6 @@ def test_apply_import_plan_recomputes_scores_for_existing_training_rows(tmp_path
     )
     conn.close()
 
-    assert leaderboard == [(1, 1.0), (2, 0.0)]
+    assert leaderboard == [(1, 0.58), (2, 0.0)]
     assert existing_eval["training_score"] == 0.0
-    assert "all current complete training runs" in existing_eval["normalization"]
+    assert existing_eval["scoring_method"] == "positive_final_validation_loss_reduction_v1"

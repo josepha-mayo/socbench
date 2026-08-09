@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text, func
@@ -171,11 +171,23 @@ class ContaminationResult(BaseModel):
 
 
 class TrainingResult(BaseModel):
+    initial_val_loss: Optional[float] = None
+    best_val_loss: Optional[float] = None
     final_val_loss: float
     loss_curve: list[float] = Field(default_factory=list)
     convergence_steps: int = 0
+    completed_steps: Optional[int] = None
     loss_stability: float = 0.0
-    relative_quality: float = 0.0
+    relative_improvement: float = 0.0
+    training_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    run_outcome: Literal[
+        "improved",
+        "stable",
+        "regressed",
+        "diverged",
+        "insufficient_evidence",
+    ] = "insufficient_evidence"
+    outcome_reason: Optional[str] = None
 
 
 class DatasetSummary(BaseModel):

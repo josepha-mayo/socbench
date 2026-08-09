@@ -105,6 +105,11 @@ def build_dataset_proof(
             "gpu_hours": training_run.gpu_hours,
             "trained_at": training_run.trained_at.isoformat() if training_run.trained_at else None,
             "model_config": training_run.model_config or {},
+            "initial_val_loss": (training_run.eval_scores or {}).get("initial_val_loss"),
+            "best_val_loss": (training_run.eval_scores or {}).get("best_val_loss"),
+            "relative_improvement": (training_run.eval_scores or {}).get("relative_improvement"),
+            "run_outcome": (training_run.eval_scores or {}).get("run_outcome"),
+            "outcome_reason": (training_run.eval_scores or {}).get("outcome_reason"),
         },
     }
 

@@ -40,7 +40,20 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
 
 
-def save_loss_curve(losses, best, iters, total_tokens, out, steps=None):
+def classify_outcome(losses):
+    if len(losses) < 2:
+        return "insufficient_evidence"
+    relative = (losses[0] - losses[-1]) / losses[0]
+    if relative > 0.01:
+        return "improved"
+    if relative < -0.05:
+        return "diverged"
+    if relative < -0.01:
+        return "regressed"
+    return "stable"
+
+
+def save_loss_curve(losses, best, iters, total_tokens, out, status, reason, steps=None):
     if steps is None:
         steps = list(range(len(losses)))
     comparable_curve = [
@@ -58,15 +71,33 @@ def save_loss_curve(losses, best, iters, total_tokens, out, steps=None):
                 max_iters=iters,
                 total_tokens=total_tokens,
                 n_tokens=total_tokens,
+                initial_val_loss=losses[0] if losses else None,
+                run_outcome=classify_outcome(losses),
+                status=status,
+                outcome_reason=reason,
             ),
             f,
             indent=2,
         )
 
 
-def save_eval_results(out, best, final):
+def save_eval_results(out, losses, best, final, status, reason):
     with open(os.path.join(out, "eval_results.json"), "w") as f:
-        json.dump(dict(best_val_loss=best, final_val_loss=final), f, indent=2)
+        initial = losses[0] if losses else None
+        relative = ((initial - final) / initial) if initial else None
+        json.dump(
+            dict(
+                status=status,
+                initial_val_loss=initial,
+                best_val_loss=best,
+                final_val_loss=final,
+                relative_improvement=relative,
+                run_outcome=classify_outcome(losses),
+                outcome_reason=reason,
+            ),
+            f,
+            indent=2,
+        )
 
 
 # ── Config ──────────────────────────────────────────────────────────────────
@@ -96,6 +127,7 @@ weight_decay = {TRAIN.weight_decay}
 beta1 = {TRAIN.betas[0]}
 beta2 = {TRAIN.betas[1]}
 grad_clip = {TRAIN.grad_clip}
+optimizer_eps = {TRAIN.eps}
 
 # Schedule
 tokens = {tokens}
@@ -111,6 +143,12 @@ if device not in {"cuda", "cpu"}:
 dtype = "float16" if device == "cuda" else "float32"
 compile_env = os.environ.get("SOCBENCH_TRAIN_COMPILE", "1").lower() in {"1", "true", "yes"}
 compile = {TRAIN.compile} and compile_env and device == "cuda"
+full_run_authorized = os.environ.get("SOCBENCH_FULL_RUN", "0").lower() in {{"1", "true", "yes"}}
+allow_excessive_repetition = os.environ.get("SOCBENCH_ALLOW_EXCESSIVE_REPETITION", "0").lower() in {{"1", "true", "yes"}}
+calibration_iters = int(os.environ.get("SOCBENCH_CALIBRATION_ITERS", "{TRAIN.calibration_iters}"))
+min_calibration_improvement = float(os.environ.get("SOCBENCH_MIN_CALIBRATION_IMPROVEMENT", "{TRAIN.min_calibration_improvement}"))
+max_val_loss_increase = float(os.environ.get("SOCBENCH_MAX_VAL_LOSS_INCREASE", "{TRAIN.max_val_loss_increase}"))
+divergence_patience = int(os.environ.get("SOCBENCH_DIVERGENCE_PATIENCE", "{TRAIN.divergence_patience}"))
 if device == "cuda":
     try:
         assert torch.cuda.is_available()
@@ -171,10 +209,18 @@ ctx = nullcontext() if device_type == "cpu" else torch.amp.autocast(device_type=
 
 data = np.memmap(dataset_path, dtype=np.uint16, mode="r")
 n_total = len(data)
-if n_total < 2:
-    raise ValueError("the dataset will repeat and is not large enough to train on")
 n_train = int(0.9 * n_total)
 n_val = n_total - n_train
+if n_train <= block_size or n_val <= block_size:
+    raise ValueError(
+        f"Dataset split is too small for block_size={{block_size}}: train={{n_train}}, val={{n_val}}"
+    )
+planned_repeats = tokens / n_train
+if planned_repeats > {TRAIN.max_dataset_repeats} and not allow_excessive_repetition:
+    raise ValueError(
+        f"Planned token budget repeats the training split {{planned_repeats:.1f}}x; "
+        "set SOCBENCH_ALLOW_EXCESSIVE_REPETITION=1 only after reviewing the methodology."
+    )
 train_data = data[:n_train]
 val_data = data[n_train:]
 
@@ -298,7 +344,7 @@ class GPT(torch.nn.Module):
             loss = None
         return logits, loss
 
-    def configure_optimizers(self, weight_decay, learning_rate, betas, device_type):
+    def configure_optimizers(self, weight_decay, learning_rate, betas, eps, device_type):
         decay = set()
         no_decay = set()
         whitelist_weight_modules = (torch.nn.Linear,)
@@ -323,7 +369,7 @@ class GPT(torch.nn.Module):
         fused_available = "fused" in torch.optim.AdamW.__init__.__code__.co_varnames
         use_fused = fused_available and device_type == "cuda"
         extra_args = {{"fused": True}} if use_fused else {{}}
-        return torch.optim.AdamW(optim_groups, lr=learning_rate, betas=betas, **extra_args)
+        return torch.optim.AdamW(optim_groups, lr=learning_rate, betas=betas, eps=eps, **extra_args)
 
 batch_size = int(os.environ.get("SOCBENCH_TRAIN_BATCH_SIZE", "{TRAIN.batch_size}"))
 if device_type == "cpu":
@@ -331,6 +377,7 @@ if device_type == "cpu":
     gradient_accumulation_steps = 1
 tokens_per_iter = batch_size * block_size * gradient_accumulation_steps * (ddp_world_size if ddp else 1)
 max_iters = max(1, tokens // tokens_per_iter)
+calibration_iters = max(1, min(calibration_iters, max_iters - 1)) if max_iters > 1 else 1
 eval_iters = min(eval_iters, max(1, max_iters))
 warmup_iters = max(1, min(max_iters, {TRAIN.warmup_tokens} // tokens_per_iter))
 lr_decay_iters = max_iters
@@ -347,7 +394,8 @@ if ddp:
     model = DDP(model, device_ids=[ddp_local_rank])
 
 raw_model = model.module if ddp else model
-optimizer = raw_model.configure_optimizers(weight_decay, learning_rate, (beta1, beta2), device_type)
+optimizer = raw_model.configure_optimizers(weight_decay, learning_rate, (beta1, beta2), optimizer_eps, device_type)
+scaler = torch.amp.GradScaler("cuda", enabled=(device_type == "cuda" and dtype == "float16"))
 if compile:
     model = torch.compile(model)
 
@@ -357,6 +405,8 @@ def get_lr(it):
     if it < warmup_iters:
         return learning_rate * it / warmup_iters
     if it > lr_decay_iters:
+        return min_lr
+    if lr_decay_iters == warmup_iters:
         return min_lr
     decay_ratio = (it - warmup_iters) / (lr_decay_iters - warmup_iters)
     coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))
@@ -372,6 +422,11 @@ iter_num = 0
 best_val_loss = 1e9
 losses_log = []
 loss_steps = []
+initial_val_loss = None
+divergence_count = 0
+stop_reason = "completed token budget"
+run_status = "complete"
+stop_training = False
 
 if master_process:
     print(f"Starting training: {{max_iters}} iterations, {{tokens}} tokens")
@@ -379,13 +434,15 @@ if master_process:
     print(f"World size: {{ddp_world_size if ddp else 1}}")
     print(f"Effective batch size: {{batch_size * gradient_accumulation_steps * (ddp_world_size if ddp else 1)}}")
     print(f"Tokens per iteration: {{tokens_per_iter}}")
+    print(f"Calibration gate: {{calibration_iters}} iterations; full run authorized={{full_run_authorized}}")
+    print(f"Planned dataset repeats: {{planned_repeats:.2f}}x")
 
 while iter_num < max_iters:
     lr = get_lr(iter_num)
     for param_group in optimizer.param_groups:
         param_group["lr"] = lr
 
-    if iter_num % eval_interval == 0 or iter_num == max_iters - 1:
+    if iter_num % eval_interval == 0 or iter_num == max_iters - 1 or iter_num == calibration_iters:
         losses = torch.zeros(eval_iters, device=device)
         model.eval()
         for k in range(eval_iters):
@@ -402,6 +459,30 @@ while iter_num < max_iters:
             torch.distributed.all_reduce(val_loss_tensor, op=torch.distributed.ReduceOp.SUM)
             val_loss_tensor /= ddp_world_size
         val_loss = val_loss_tensor.item()
+        if not math.isfinite(val_loss):
+            stop_training = True
+            run_status = "aborted"
+            stop_reason = "non-finite validation loss"
+        if initial_val_loss is None:
+            initial_val_loss = val_loss
+        elif val_loss > initial_val_loss * (1 + max_val_loss_increase):
+            divergence_count += 1
+        else:
+            divergence_count = 0
+        if divergence_count >= divergence_patience:
+            stop_training = True
+            run_status = "aborted"
+            stop_reason = f"validation loss exceeded baseline by more than {{max_val_loss_increase:.1%}} for {{divergence_count}} checks"
+        if iter_num == calibration_iters:
+            calibration_improvement = (initial_val_loss - val_loss) / initial_val_loss
+            if calibration_improvement < min_calibration_improvement:
+                stop_training = True
+                run_status = "aborted"
+                stop_reason = f"calibration improved only {{calibration_improvement:.2%}}; required {{min_calibration_improvement:.2%}}"
+            elif not full_run_authorized:
+                stop_training = True
+                run_status = "calibration_complete"
+                stop_reason = "calibration passed; set SOCBENCH_FULL_RUN=1 to authorize the full token budget"
         if master_process:
             losses_log.append(val_loss)
             loss_steps.append(iter_num)
@@ -419,6 +500,9 @@ while iter_num < max_iters:
                 }}
                 torch.save(checkpoint, os.path.join(out_dir, "ckpt.pt"))
 
+        if stop_training:
+            break
+
     model.train()
     optimizer.zero_grad(set_to_none=True)
 
@@ -427,11 +511,15 @@ while iter_num < max_iters:
             model.require_backward_grad_sync = (micro_step == gradient_accumulation_steps - 1)
         with ctx:
             logits, loss = model(X, Y)
-            loss = loss / gradient_accumulation_steps
-        loss.backward()
+            scaled_loss = loss / gradient_accumulation_steps
+        scaler.scale(scaled_loss).backward()
 
-    torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
-    optimizer.step()
+    scaler.unscale_(optimizer)
+    grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+    if not torch.isfinite(grad_norm):
+        raise RuntimeError(f"Non-finite gradient norm at iteration {{iter_num}}: {{grad_norm}}")
+    scaler.step(optimizer)
+    scaler.update()
 
     t1 = time.time()
     dt = t1 - t0
@@ -462,10 +550,10 @@ if master_process:
     torch.save(checkpoint, os.path.join(out_dir, "ckpt_final.pt"))
 
     val_loss = losses_log[-1] if losses_log else best_val_loss
-    save_loss_curve(losses_log, best_val_loss, iter_num, actual_tokens_seen, out_dir, loss_steps)
-    save_eval_results(out_dir, best_val_loss, val_loss)
+    save_loss_curve(losses_log, best_val_loss, iter_num, actual_tokens_seen, out_dir, run_status, stop_reason, loss_steps)
+    save_eval_results(out_dir, losses_log, best_val_loss, val_loss, run_status, stop_reason)
 
-    print(f"Training complete. Best val loss: {{best_val_loss:.4f}}")
+    print(f"Training stopped with status={{run_status}}. Best val loss: {{best_val_loss:.4f}}")
     print(f"Actual tokens seen: {{actual_tokens_seen}}")
     print(f"Loss curve saved to {{out_dir}}/loss_curve.json")
     print(f"Eval results saved to {{out_dir}}/eval_results.json")

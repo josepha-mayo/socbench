@@ -12,11 +12,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
+from socbench.training.outcomes import classify_training_curve
+
 DEFAULT_PATTERNS = (
     "training_results/validated/*_v*/result.json",
-    "backend/training_outputs/**/*.log",
-    "backend/training_outputs/**/socbench_result.json",
-    "backend/training_outputs/**/loss_curve.json",
 )
 
 
@@ -32,7 +31,10 @@ class TrainingArtifact:
     final_val_loss: float
     best_val_loss: float
     loss_curve: list[float]
+    loss_steps: list[int]
     convergence_steps: int
+    completed_steps: int
+    eval_scores: dict
     model_config: dict
     trained_at: str | None
 
@@ -187,7 +189,7 @@ def load_training_artifact(path: Path, root: Path) -> tuple[TrainingArtifact | N
         return None, "missing comparable loss_curve"
 
     curve_values: list[float] = []
-    last_step: int | None = None
+    loss_steps: list[int] = []
     for point in raw_curve:
         if not isinstance(point, dict):
             return None, "loss_curve entries must be objects"
@@ -196,8 +198,9 @@ def load_training_artifact(path: Path, root: Path) -> tuple[TrainingArtifact | N
             return None, "loss_curve entry missing finite val_loss"
         curve_values.append(val_loss)
         step = _as_int(point.get("step"))
-        if step is not None:
-            last_step = step
+        if step is None:
+            return None, "loss_curve entry missing integer step"
+        loss_steps.append(step)
 
     final_val_loss = _as_float(data.get("final_val_loss"))
     best_val_loss = _as_float(data.get("best_val_loss"))
@@ -211,8 +214,51 @@ def load_training_artifact(path: Path, root: Path) -> tuple[TrainingArtifact | N
         return None, "missing positive max_iters"
     if n_tokens is None or n_tokens <= 0:
         return None, "missing positive n_tokens"
-    if last_step is None or last_step + 1 < max_iters * 0.8:
+    completed_steps = loss_steps[-1]
+    if completed_steps + 1 < max_iters * 0.8:
         return None, "run did not reach at least 80% of max_iters"
+
+    outcome = classify_training_curve(curve_values, loss_steps)
+    if not math.isclose(final_val_loss, outcome.final_val_loss, rel_tol=1e-6, abs_tol=1e-6):
+        return None, "final_val_loss does not match loss_curve"
+    claimed_outcome = data.get("run_outcome")
+    if claimed_outcome is not None and claimed_outcome != outcome.run_outcome:
+        return None, "run_outcome does not match loss_curve"
+    claimed_relative = _as_float(data.get("relative_improvement"))
+    if claimed_relative is not None and not math.isclose(
+        claimed_relative, outcome.relative_improvement, rel_tol=1e-6, abs_tol=1e-6
+    ):
+        return None, "relative_improvement does not match loss_curve"
+
+    if data.get("run_type") == "real":
+        evidence = data.get("evidence_sha256")
+        if not isinstance(evidence, dict) or not evidence:
+            return None, "real run is missing evidence_sha256"
+        if any(
+            not isinstance(digest, str)
+            or len(digest) != 64
+            or any(char not in "0123456789abcdefABCDEF" for char in digest)
+            for digest in evidence.values()
+        ):
+            return None, "real run has an invalid evidence SHA-256 digest"
+        proof_path = path.with_name("eval_results.json")
+        if not proof_path.exists():
+            return None, "real run is missing eval_results.json"
+        try:
+            proof = json.loads(proof_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            return None, f"unreadable eval_results.json: {exc}"
+        for key, expected in {
+            "dataset_id": dataset_id,
+            "best_val_loss": best_val_loss,
+            "final_val_loss": final_val_loss,
+        }.items():
+            actual = proof.get(key)
+            if isinstance(expected, float):
+                if _as_float(actual) is None or not math.isclose(float(actual), expected, rel_tol=1e-6, abs_tol=1e-6):
+                    return None, f"eval_results.json has mismatched {key}"
+            elif actual != expected:
+                return None, f"eval_results.json has mismatched {key}"
 
     n_samples = _as_int(data.get("n_samples"))
     parameters = _as_int(data.get("parameters"))
@@ -236,6 +282,7 @@ def load_training_artifact(path: Path, root: Path) -> tuple[TrainingArtifact | N
         "source_artifact": rel_path,
         "campaign_version": _campaign_version(path),
         "selection_metric": "latest_campaign_then_lowest_best_val_loss",
+        "completed_steps": completed_steps,
     }
 
     return TrainingArtifact(
@@ -249,33 +296,26 @@ def load_training_artifact(path: Path, root: Path) -> tuple[TrainingArtifact | N
         final_val_loss=final_val_loss,
         best_val_loss=best_val_loss,
         loss_curve=curve_values,
-        convergence_steps=last_step,
+        loss_steps=loss_steps,
+        convergence_steps=outcome.best_step,
+        completed_steps=completed_steps,
+        eval_scores={
+            **outcome.as_dict(),
+            "best_val_loss": best_val_loss,
+            "best_relative_improvement": (outcome.initial_val_loss - best_val_loss)
+            / outcome.initial_val_loss,
+            "source_artifact": rel_path,
+            "campaign_version": _campaign_version(path),
+        },
         model_config=model_config,
         trained_at=data.get("completed_at") or data.get("trained_at"),
     ), None
 
 
 def score_selected(selected: dict[str, TrainingArtifact]) -> dict[str, float]:
-    losses = {dataset_id: artifact.best_val_loss for dataset_id, artifact in selected.items()}
-    return score_losses(losses)
-
-
-def score_losses(losses: dict[str, float]) -> dict[str, float]:
-    if not losses:
-        return {}
-    avg_loss = sum(losses.values()) / len(losses)
-    relative = {
-        dataset_id: avg_loss / loss if loss > 0 else 0.0
-        for dataset_id, loss in losses.items()
-    }
-    min_rel = min(relative.values())
-    max_rel = max(relative.values())
-    span = max_rel - min_rel
-    if span <= 0:
-        return {key: 1.0 for key in losses}
     return {
-        key: max(0.0, min(1.0, (value - min_rel) / span))
-        for key, value in relative.items()
+        dataset_id: artifact.eval_scores["training_score"]
+        for dataset_id, artifact in selected.items()
     }
 
 
@@ -287,41 +327,32 @@ def _recompute_all_training_scores(conn: sqlite3.Connection) -> None:
             t.dataset_id,
             t.eval_scores,
             t.loss_curve,
+            t.model_config,
             l.*
         FROM training_runs t
         JOIN leaderboard l ON l.dataset_id = t.dataset_id
         """
     ).fetchall()
-    losses: dict[int, float] = {}
-    eval_payloads: dict[int, dict] = {}
     for row in rows:
         try:
             eval_scores = json.loads(row["eval_scores"] or "{}")
         except (TypeError, json.JSONDecodeError):
             eval_scores = {}
-        best_loss = _as_float(eval_scores.get("best_val_loss"))
-        if best_loss is None:
-            try:
-                curve = json.loads(row["loss_curve"] or "[]")
-            except (TypeError, json.JSONDecodeError):
-                curve = []
-            curve_values = [_as_float(value) for value in curve]
-            finite_values = [value for value in curve_values if value is not None]
-            best_loss = min(finite_values) if finite_values else None
-        if best_loss is not None and best_loss > 0:
-            losses[row["dataset_id"]] = best_loss
-            eval_payloads[row["training_run_id"]] = eval_scores
-
-    scores = score_losses(losses)
-    for row in rows:
-        score = scores.get(row["dataset_id"])
-        if score is None:
+        try:
+            curve = json.loads(row["loss_curve"] or "[]")
+        except (TypeError, json.JSONDecodeError):
+            curve = []
+        curve_values = [_as_float(value) for value in curve]
+        finite_values = [value for value in curve_values if value is not None]
+        if not finite_values:
             continue
-        eval_scores = eval_payloads[row["training_run_id"]]
-        eval_scores["training_score"] = score
-        eval_scores["normalization"] = (
-            "minmax(avg_loss / best_val_loss) across all current complete training runs"
-        )
+        completed_steps = _as_int((json.loads(row["model_config"] or "{}") or {}).get("completed_steps"))
+        steps = list(range(len(finite_values)))
+        if completed_steps is not None and len(steps) > 1:
+            steps = [round(i * completed_steps / (len(steps) - 1)) for i in range(len(steps))]
+        outcome = classify_training_curve(finite_values, steps)
+        eval_scores.update(outcome.as_dict())
+        score = outcome.training_score
         conn.execute(
             "UPDATE training_runs SET eval_scores = ? WHERE id = ?",
             (_json(eval_scores), row["training_run_id"]),
@@ -443,13 +474,7 @@ def apply_import_plan(plan: ImportPlan, db_path: Path, create_missing_datasets: 
                 if ds is None:
                     continue
             dataset_pk = ds["id"]
-            eval_scores = {
-                "training_score": score,
-                "best_val_loss": artifact.best_val_loss,
-                "source_artifact": artifact.path,
-                "campaign_version": artifact.campaign_version,
-                "normalization": "pending global recomputation",
-            }
+            eval_scores = artifact.eval_scores
             existing = conn.execute(
                 "SELECT id FROM training_runs WHERE dataset_id = ? ORDER BY id",
                 (dataset_pk,),

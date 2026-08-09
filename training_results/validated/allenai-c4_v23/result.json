@@ -9,6 +9,10 @@
   "max_iters": 1907,
   "final_val_loss": 76.7325210571289,
   "best_val_loss": 10.961181640625,
+  "initial_val_loss": 10.961181640625,
+  "relative_improvement": -6.000387692941622,
+  "run_outcome": "diverged",
+  "outcome_reason": "Final validation loss increased by more than 5% from baseline.",
   "loss_curve": [
     {"step": 0, "train_loss": null, "val_loss": 10.961181640625},
     {"step": 500, "train_loss": null, "val_loss": 19.22311782836914},

@@ -32,23 +32,30 @@ class TrainConfig:
     """Training hyperparameters for GPT-2 124M."""
 
     # Optimizer
-    learning_rate: float = 6e-4
+    learning_rate: float = 3e-4
     betas: tuple[float, float] = (0.9, 0.95)
     eps: float = 1e-8
     weight_decay: float = 0.1
     grad_clip: float = 1.0
 
     # Schedule
-    warmup_tokens: int = 375_000_000  # 375M tokens
-    lr_decay_to: float = 6e-5  # Cosine decay to 10% of peak
+    warmup_tokens: int = 10_000_000
+    lr_decay_to: float = 3e-5
 
     # Batch
-    batch_size: int = 16  # Per GPU
-    gradient_accumulation_steps: int = 32
+    batch_size: int = 8  # Per GPU
+    gradient_accumulation_steps: int = 64
     max_iters: int = 0  # Set dynamically based on token budget
 
     # Token budget
     tokens_per_dataset: int = 1_000_000_000  # 1B tokens
+    max_dataset_repeats: float = 8.0
+
+    # Fail-closed calibration and divergence gates
+    calibration_iters: int = 100
+    min_calibration_improvement: float = 0.005
+    max_val_loss_increase: float = 0.05
+    divergence_patience: int = 2
 
     # Precision
     dtype: str = "float16"  # T4 has no BF16
@@ -61,7 +68,7 @@ class TrainConfig:
     eval_iters: int = 200
 
     # Hardware
-    compile: bool = True  # torch.compile for speed
+    compile: bool = False
     ddp: bool = True  # DistributedDataParallel
 
 

@@ -32,7 +32,7 @@ def test_generate_train_script_contains_required_markers(trainer_script):
         "eval_results.json",
         "save_loss_curve",
         "configure_optimizers",
-        "compile = True",
+        "compile = False",
     ]
     for marker in required:
         assert marker in trainer_script, marker
@@ -49,6 +49,13 @@ def test_generate_train_script_contains_required_markers(trainer_script):
     assert 'required_world_size = int(os.environ.get("SOCBENCH_REQUIRED_WORLD_SIZE", "1"))' in trainer_script
     assert "torch.distributed.all_reduce(val_loss_tensor" in trainer_script
     assert "tokens_per_sec = tokens_per_iter / dt" in trainer_script
+    assert "SOCBENCH_FULL_RUN" in trainer_script
+    assert "SOCBENCH_ALLOW_EXCESSIVE_REPETITION" in trainer_script
+    assert "torch.amp.GradScaler" in trainer_script
+    assert "scaler.unscale_(optimizer)" in trainer_script
+    assert "Non-finite gradient norm" in trainer_script
+    assert "calibration improved only" in trainer_script
+    assert "validation loss exceeded baseline" in trainer_script
     assert "torch.distributed.barrier()" in trainer_script
     assert 'init_process_group("gloo")' not in trainer_script
     assert "{str(TRAIN.compile)}" not in trainer_script
@@ -62,9 +69,9 @@ def test_generated_train_script_compiles(trainer_script):
 
 
 def test_generated_train_script_has_expected_data_validation(trainer_script):
-    assert "if n_total < 2:" in trainer_script
+    assert "if n_train <= block_size or n_val <= block_size:" in trainer_script
     assert "raise ValueError" in trainer_script
-    assert "the dataset will repeat" in trainer_script.lower()
+    assert "planned token budget repeats" in trainer_script.lower()
 
 
 def test_generated_train_script_requires_nccl_ddp(trainer_script):
