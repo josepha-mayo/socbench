@@ -203,6 +203,39 @@ def test_load_training_artifact_accepts_single_step_comparable_curve(tmp_path):
     assert artifact.convergence_steps == 0
 
 
+def test_load_training_artifact_preserves_distributed_evidence(tmp_path):
+    root = tmp_path
+    path = root / "training_results" / "validated" / "dataset-a_v23" / "result.json"
+    _write_result(path, "dataset/a", 4.0, 4.2)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data.update(
+        {
+            "run_type": "real",
+            "completed_at": "2026-08-09T05:51:15+00:00",
+            "num_gpus": 2,
+            "distributed_world_size": 2,
+            "launcher": "torch.distributed.run",
+            "gradient_accumulation_steps": 64,
+            "effective_batch_size": 512,
+            "evidence_sha256": {"training_log": "abc123"},
+        }
+    )
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+    artifact, reason = load_training_artifact(path, root)
+
+    assert reason is None
+    assert artifact is not None
+    assert artifact.model_config["run_type"] == "real"
+    assert artifact.trained_at == "2026-08-09T05:51:15+00:00"
+    assert artifact.model_config["num_gpus"] == 2
+    assert artifact.model_config["distributed_world_size"] == 2
+    assert artifact.model_config["launcher"] == "torch.distributed.run"
+    assert artifact.model_config["gradient_accumulation_steps"] == 64
+    assert artifact.model_config["effective_batch_size"] == 512
+    assert artifact.model_config["evidence_sha256"]["training_log"] == "abc123"
+
+
 def test_build_plan_selects_best_complete_run_and_reports_orphans(tmp_path):
     db = tmp_path / "socbench.db"
     _make_db(db)
@@ -273,3 +306,39 @@ def test_apply_import_plan_can_create_training_only_dataset_rows(tmp_path):
     conn.close()
 
     assert row == ("dataset/missing", "posttraining-sft", 4.2)
+
+
+def test_apply_import_plan_recomputes_scores_for_existing_training_rows(tmp_path):
+    db = tmp_path / "socbench.db"
+    _make_db(db)
+    conn = sqlite3.connect(db)
+    conn.execute(
+        """
+        INSERT INTO training_runs (dataset_id, final_val_loss, loss_curve, eval_scores)
+        VALUES (2, 8.1, '[8.0, 8.1]', '{"best_val_loss": 8.0}')
+        """
+    )
+    conn.commit()
+    conn.close()
+    _write_result(
+        tmp_path / "training_results" / "validated" / "a_v23" / "result.json",
+        "dataset/a",
+        4.0,
+        4.2,
+    )
+
+    plan = build_import_plan(tmp_path, db)
+    assert apply_import_plan(plan, db) == 1
+
+    conn = sqlite3.connect(db)
+    leaderboard = conn.execute(
+        "SELECT dataset_id, training_score FROM leaderboard ORDER BY dataset_id"
+    ).fetchall()
+    existing_eval = json.loads(
+        conn.execute("SELECT eval_scores FROM training_runs WHERE dataset_id = 2").fetchone()[0]
+    )
+    conn.close()
+
+    assert leaderboard == [(1, 1.0), (2, 0.0)]
+    assert existing_eval["training_score"] == 0.0
+    assert "all current complete training runs" in existing_eval["normalization"]

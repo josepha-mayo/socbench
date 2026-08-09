@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "dataset_id": "NousResearch/hermes-function-calling-v1",
+  "run_type": "real",
+  "status": "complete",
+  "completed_at": "2026-08-09T05:51:15.365147+00:00",
+  "best_val_loss": 10.449228286743164,
+  "final_val_loss": 48.267005920410156,
+  "total_iters": 1907,
+  "tokens_seen": 999817216,
+  "hardware": {
+    "cuda_device_count": 2,
+    "gpu_names": ["Tesla T4", "Tesla T4"],
+    "distributed_world_size": 2,
+    "launcher": "torch.distributed.run"
+  },
+  "validation_outcome": "Validation improved at the first checkpoint and then diverged; retained as a real negative result."
+}

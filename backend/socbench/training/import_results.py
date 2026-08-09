@@ -34,6 +34,7 @@ class TrainingArtifact:
     loss_curve: list[float]
     convergence_steps: int
     model_config: dict
+    trained_at: str | None
 
 
 @dataclass(frozen=True)
@@ -128,10 +129,16 @@ def _extract_marker_json(text: str) -> dict | None:
 def _normalize_marker_summary(summary: dict) -> dict:
     loss_data = summary.get("loss_curve.json")
     eval_data = summary.get("eval_results.json")
+    hardware = summary.get("hardware")
     if not isinstance(loss_data, dict):
         loss_data = {}
     if not isinstance(eval_data, dict):
         eval_data = {}
+    if not isinstance(hardware, dict):
+        hardware = {}
+    gpu_names = hardware.get("gpu_names")
+    if not isinstance(gpu_names, list):
+        gpu_names = []
 
     return {
         "dataset_id": summary.get("dataset_id"),
@@ -141,11 +148,13 @@ def _normalize_marker_summary(summary: dict) -> dict:
         "max_iters": loss_data.get("max_iters") or loss_data.get("total_iters"),
         "final_val_loss": eval_data.get("final_val_loss") or loss_data.get("final_val_loss"),
         "best_val_loss": eval_data.get("best_val_loss") or loss_data.get("best_val_loss"),
-        "gpu": summary.get("gpu"),
+        "gpu": summary.get("gpu") or ", ".join(str(name) for name in gpu_names) or None,
         "pytorch_version": summary.get("pytorch_version"),
         "batch_size": summary.get("batch_size"),
         "use_fp16": summary.get("use_fp16"),
-        "num_gpus": summary.get("num_gpus", 1),
+        "num_gpus": summary.get("num_gpus") or hardware.get("cuda_device_count") or 1,
+        "distributed_world_size": hardware.get("distributed_world_size"),
+        "launcher": hardware.get("launcher"),
         "loss_curve": loss_data.get("loss_curve"),
     }
 
@@ -214,8 +223,15 @@ def load_training_artifact(path: Path, root: Path) -> tuple[TrainingArtifact | N
         "gpu": data.get("gpu"),
         "pytorch_version": data.get("pytorch_version"),
         "batch_size": data.get("batch_size"),
+        "gradient_accumulation_steps": data.get("gradient_accumulation_steps"),
+        "effective_batch_size": data.get("effective_batch_size"),
         "use_fp16": data.get("use_fp16"),
         "num_gpus": data.get("num_gpus", 1),
+        "distributed_world_size": data.get("distributed_world_size"),
+        "launcher": data.get("launcher"),
+        "run_type": data.get("run_type"),
+        "evidence_sha256": data.get("evidence_sha256"),
+        "completed_at": data.get("completed_at"),
         "n_samples": n_samples,
         "source_artifact": rel_path,
         "campaign_version": _campaign_version(path),
@@ -235,11 +251,16 @@ def load_training_artifact(path: Path, root: Path) -> tuple[TrainingArtifact | N
         loss_curve=curve_values,
         convergence_steps=last_step,
         model_config=model_config,
+        trained_at=data.get("completed_at") or data.get("trained_at"),
     ), None
 
 
 def score_selected(selected: dict[str, TrainingArtifact]) -> dict[str, float]:
     losses = {dataset_id: artifact.best_val_loss for dataset_id, artifact in selected.items()}
+    return score_losses(losses)
+
+
+def score_losses(losses: dict[str, float]) -> dict[str, float]:
     if not losses:
         return {}
     avg_loss = sum(losses.values()) / len(losses)
@@ -251,11 +272,68 @@ def score_selected(selected: dict[str, TrainingArtifact]) -> dict[str, float]:
     max_rel = max(relative.values())
     span = max_rel - min_rel
     if span <= 0:
-        return {dataset_id: 1.0 for dataset_id in selected}
+        return {key: 1.0 for key in losses}
     return {
-        dataset_id: max(0.0, min(1.0, (value - min_rel) / span))
-        for dataset_id, value in relative.items()
+        key: max(0.0, min(1.0, (value - min_rel) / span))
+        for key, value in relative.items()
     }
+
+
+def _recompute_all_training_scores(conn: sqlite3.Connection) -> None:
+    rows = conn.execute(
+        """
+        SELECT
+            t.id AS training_run_id,
+            t.dataset_id,
+            t.eval_scores,
+            t.loss_curve,
+            l.*
+        FROM training_runs t
+        JOIN leaderboard l ON l.dataset_id = t.dataset_id
+        """
+    ).fetchall()
+    losses: dict[int, float] = {}
+    eval_payloads: dict[int, dict] = {}
+    for row in rows:
+        try:
+            eval_scores = json.loads(row["eval_scores"] or "{}")
+        except (TypeError, json.JSONDecodeError):
+            eval_scores = {}
+        best_loss = _as_float(eval_scores.get("best_val_loss"))
+        if best_loss is None:
+            try:
+                curve = json.loads(row["loss_curve"] or "[]")
+            except (TypeError, json.JSONDecodeError):
+                curve = []
+            curve_values = [_as_float(value) for value in curve]
+            finite_values = [value for value in curve_values if value is not None]
+            best_loss = min(finite_values) if finite_values else None
+        if best_loss is not None and best_loss > 0:
+            losses[row["dataset_id"]] = best_loss
+            eval_payloads[row["training_run_id"]] = eval_scores
+
+    scores = score_losses(losses)
+    for row in rows:
+        score = scores.get(row["dataset_id"])
+        if score is None:
+            continue
+        eval_scores = eval_payloads[row["training_run_id"]]
+        eval_scores["training_score"] = score
+        eval_scores["normalization"] = (
+            "minmax(avg_loss / best_val_loss) across all current complete training runs"
+        )
+        conn.execute(
+            "UPDATE training_runs SET eval_scores = ? WHERE id = ?",
+            (_json(eval_scores), row["training_run_id"]),
+        )
+        conn.execute(
+            """
+            UPDATE leaderboard
+            SET training_score = ?, combined_score = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE dataset_id = ?
+            """,
+            (score, _combined_score(row, score), row["dataset_id"]),
+        )
 
 
 def build_import_plan(root: Path, db_path: Path, include_orphans: bool = False) -> ImportPlan:
@@ -370,7 +448,7 @@ def apply_import_plan(plan: ImportPlan, db_path: Path, create_missing_datasets: 
                 "best_val_loss": artifact.best_val_loss,
                 "source_artifact": artifact.path,
                 "campaign_version": artifact.campaign_version,
-                "normalization": "minmax(avg_loss / best_val_loss) across latest imported complete runs",
+                "normalization": "pending global recomputation",
             }
             existing = conn.execute(
                 "SELECT id FROM training_runs WHERE dataset_id = ? ORDER BY id",
@@ -384,6 +462,7 @@ def apply_import_plan(plan: ImportPlan, db_path: Path, create_missing_datasets: 
                 _json(artifact.model_config),
                 _json(eval_scores),
                 _loss_stability(artifact.loss_curve),
+                artifact.trained_at,
                 dataset_pk,
             )
             if existing:
@@ -392,7 +471,7 @@ def apply_import_plan(plan: ImportPlan, db_path: Path, create_missing_datasets: 
                     UPDATE training_runs
                     SET final_val_loss = ?, loss_curve = ?, convergence_steps = ?,
                         tokens_seen = ?, model_config = ?, eval_scores = ?,
-                        loss_stability = ?
+                        loss_stability = ?, trained_at = COALESCE(?, trained_at)
                     WHERE dataset_id = ?
                     """,
                     values,
@@ -402,9 +481,9 @@ def apply_import_plan(plan: ImportPlan, db_path: Path, create_missing_datasets: 
                     """
                     INSERT INTO training_runs (
                         final_val_loss, loss_curve, convergence_steps, tokens_seen,
-                        model_config, eval_scores, loss_stability, dataset_id
+                        model_config, eval_scores, loss_stability, trained_at, dataset_id
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), ?)
                     """,
                     values,
                 )
@@ -437,6 +516,8 @@ def apply_import_plan(plan: ImportPlan, db_path: Path, create_missing_datasets: 
                     (dataset_pk, "posttraining-sft", score, round(score * 0.1, 4)),
                 )
             changed += 1
+
+        _recompute_all_training_scores(conn)
 
         entries = conn.execute(
             "SELECT id FROM leaderboard ORDER BY combined_score DESC NULLS LAST"

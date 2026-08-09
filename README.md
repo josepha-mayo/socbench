@@ -44,6 +44,12 @@ The recovered proxy results also include `Salesforce/wikitext`,
 `allenai/c4`, `HuggingFaceFW/fineweb-edu`, and
 `NousResearch/hermes-function-calling-v1`.
 
+The latest validated real-run artifacts are the v23 results for `allenai/c4` and
+`NousResearch/hermes-function-calling-v1`. Each reached 999,817,216 observed tokens
+with two Tesla T4 devices and distributed world size 2. Both are retained as negative
+results: C4 diverged after its initial validation, while Hermes improved at the first
+checkpoint and then diverged. Incomplete campaign runs are not published as results.
+
 Pending rows are dynamic: the API pulls the current top Hugging Face trending and
 most-downloaded datasets, removes anything already trained, and marks the rest as
 `pending`. Those are the datasets left to train next. Check them with:
@@ -259,8 +265,9 @@ python -m socbench.training.import_results --include-orphans --create-missing-da
 ```
 
 The importer is idempotent. It validates artifact completeness, keeps provenance in
-`model_config.source_artifact`, upserts `training_runs`, recomputes `training_score`,
-and preserves the combined score formula:
+`model_config.source_artifact`, upserts `training_runs`, and globally recomputes
+`training_score` across every current complete run so incremental imports cannot leave
+mixed normalization states. It preserves the combined score formula:
 
 ```text
 combined_score = 0.9 * auto_score + 0.1 * training_score

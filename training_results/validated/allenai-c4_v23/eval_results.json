@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "dataset_id": "allenai/c4",
+  "run_type": "real",
+  "status": "complete",
+  "completed_at": "2026-08-09T05:49:44.717333+00:00",
+  "best_val_loss": 10.961181640625,
+  "final_val_loss": 76.7325210571289,
+  "total_iters": 1907,
+  "tokens_seen": 999817216,
+  "hardware": {
+    "cuda_device_count": 2,
+    "gpu_names": ["Tesla T4", "Tesla T4"],
+    "distributed_world_size": 2,
+    "launcher": "torch.distributed.run"
+  },
+  "validation_outcome": "Validation loss diverged after the initial checkpoint; retained as a real negative result."
+}

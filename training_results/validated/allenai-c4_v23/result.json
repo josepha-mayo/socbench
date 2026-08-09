@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "dataset_id": "allenai/c4",
+  "run_type": "real",
+  "completed_at": "2026-08-09T05:49:44.717333+00:00",
+  "tokens_budget": 1000000000,
+  "n_tokens": 999817216,
+  "parameters": 124439808,
+  "max_iters": 1907,
+  "final_val_loss": 76.7325210571289,
+  "best_val_loss": 10.961181640625,
+  "loss_curve": [
+    {"step": 0, "train_loss": null, "val_loss": 10.961181640625},
+    {"step": 500, "train_loss": null, "val_loss": 19.22311782836914},
+    {"step": 1000, "train_loss": null, "val_loss": 45.04487609863281},
+    {"step": 1500, "train_loss": null, "val_loss": 68.59268188476562},
+    {"step": 1906, "train_loss": null, "val_loss": 76.7325210571289}
+  ],
+  "gpu": "2x Tesla T4",
+  "num_gpus": 2,
+  "distributed_world_size": 2,
+  "launcher": "torch.distributed.run",
+  "batch_size": 8,
+  "gradient_accumulation_steps": 64,
+  "effective_batch_size": 512,
+  "evidence_sha256": {
+    "hardware": "08B37CB3AF08205E2983D5C969D748A674E0D747EA14FA4E85E746D37519A326",
+    "loss_curve": "DE64C76BF409A1349711473A34282161451E5C7CDB760158BAC3C03DA34E97FB",
+    "eval_results": "7FE9C509F8DE9415AD85A2931EAB7C8F6D0858F29AA0679C0AEFBFE123D899DE",
+    "training_log": "82B977D8882E1732C7E1342071DBE88E3C4FCF7251C5FBE4824416CA94A6C482"
+  }
+}
