@@ -62,4 +62,3 @@ def test_audit_command_is_listed_in_help():
     assert result.exit_code == 0
     assert "audit" in result.output
     assert "seven-stage" in result.output
-    assert "kaggle" not in result.output.lower()

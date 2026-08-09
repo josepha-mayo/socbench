@@ -1,10 +1,8 @@
 # Socbench Training Results
 
-This directory keeps small validated training-result artifacts used by
-`python -m socbench.training.import_results`.
-
-It intentionally contains JSON loss curves and summary files, not model checkpoints,
-compute credentials, generated runners, or local logs.
+This directory keeps compact validated result summaries and evaluation proofs used by
+`python -m socbench.training.import_results`. It does not store model checkpoints,
+credentials, execution code, or raw logs.
 
 ## Contents
 
@@ -28,5 +26,5 @@ python -m socbench.training.import_results --include-orphans --create-missing-da
 ```
 
 The importer validates completeness, records each selected artifact path in
-`training_runs.model_config.source_artifact`, and globally normalizes training scores
-across all current complete runs after each applied import.
+`training_runs.model_config.source_artifact`, and recomputes each run's divergence-aware
+training score and combined score after an applied import.

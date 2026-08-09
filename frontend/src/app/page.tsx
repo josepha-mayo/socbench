@@ -333,7 +333,7 @@ export default function LeaderboardPage() {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex max-w-full flex-wrap items-center gap-2">
           <input
             type="text"
             placeholder="Search datasets..."
@@ -507,7 +507,8 @@ export default function LeaderboardPage() {
         13-gram contamination checking, and GPT-2 124M training impact measurement.
         Scores are on a 0-100 scale. Contamination flag triggers when benchmark overlap exceeds 1%.
         Repetition % measures exact-row duplication. Categories are hierarchically classified.
-        Training score = normalized relative quality (avg_loss / this_loss, scaled 0-100).
+        Training score is the positive final validation-loss reduction for improved runs;
+        stable, regressed, divergent, or insufficient runs score zero.
       </div>
         </>
       )}

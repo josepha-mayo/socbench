@@ -13,7 +13,6 @@
 **/*.out
 **/*.err
 backend/.venv
-backend/kaggle_*
 backend/training_outputs
 eval-proof
 frontend/.next

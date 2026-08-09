@@ -41,20 +41,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
         </header>
         <main className="max-w-6xl mx-auto px-4 py-6">{children}</main>
-        <footer className="border-t border-arxiv-border mt-12 py-6 text-center text-xs font-sans text-arxiv-gray">
-          <div className="max-w-3xl mx-auto space-y-2">
-            <p>
-              <span className="text-arxiv-red font-bold">Soc</span>
-              <span className="text-arxiv-dark font-bold">bench</span> — Scientific dataset intelligence. Examine first, train later.
-            </p>
-            <p className="text-[11px] leading-relaxed max-w-2xl mx-auto">
-              The name <em>Socbench</em> honors Socrates, who held that &ldquo;the unexamined life is not worth living.&rdquo;
-              We apply the same principle to data: <strong>the unexamined dataset is not worth training on.</strong>
-              Just as Socrates examined beliefs through rigorous questioning, Socbench examines datasets through
-              multi-dimension scoring, contamination checking, and training impact measurement — because in AI,
-              as in philosophy, the quality of what you feed in determines the quality of what comes out.
-            </p>
-          </div>
+        <footer className="border-t border-arxiv-border mt-12 px-4 py-5 text-center text-xs font-sans text-arxiv-gray">
+          <p>Scientific dataset intelligence. Examine first, train later.</p>
         </footer>
       </body>
     </html>

@@ -294,7 +294,7 @@ async def _load_training_results(root: Path) -> int:
 
 
 async def bootstrap_from_canonical(strict: bool = False) -> dict[str, int | bool]:
-    """Populate a new database from versioned, provider-neutral artifacts."""
+    """Populate a new database from versioned canonical artifacts."""
     catalog_path = _default_catalog_path()
     training_root = _default_training_root()
     async with async_session_factory() as session:

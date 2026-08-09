@@ -19,25 +19,10 @@ socbench.db
 # Contamination checker benchmark n-gram cache
 backend/socbench/contamination/.cache/
 
-# Local recovery/runtime artifacts
-CONTINUATION_CONTEXT.md
-LANE_GUARD.md
-leaderboard.json
-socbench.md
-vibe/
+# Local runtime artifacts
 eval-proof/
-backend/_*.py
-backend/*_loop.ps1
-backend/poll_manual.ps1
-backend/watcher.ps1
-backend/download_training_outputs.py
+audit_outputs/
 backend/training_outputs/
-backend/output_test*/
-backend/pulled_kernel/
-backend/test_output_*/
-backend/train_test_extracted.py
-backend/train_pending.log
-backend/poll_status.log
 
 # Node / Next.js
 node_modules/

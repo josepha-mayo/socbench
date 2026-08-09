@@ -6,8 +6,9 @@ raw corpora, records contamination evidence, and publishes validated proxy-train
 outcomes.
 
 The product consists of a FastAPI service, a Next.js interface, a Python CLI, a canonical
-55-dataset scored catalog, and compact provider-neutral training evidence. A clean database
-bootstraps from tracked JSON, so production does not depend on a developer's SQLite file.
+55-dataset scored catalog, and compact validated result summaries with evaluation proofs. A
+clean database bootstraps from tracked JSON, so production does not depend on a developer's
+SQLite file.
 
 ## Current Evidence
 
@@ -60,12 +61,13 @@ backend/
 catalog/catalog.json     Canonical scored catalog, without runtime IDs
 frontend/src/            Next.js application
 training_results/
-  validated/             Compact canonical result and evaluation-proof JSON
+  validated/             Compact canonical result summaries and evaluation proofs
 docker-compose.yml       PostgreSQL, API, and frontend production-like stack
 ```
 
-Runtime databases, credentials, external-compute source, raw logs, checkpoints, caches,
-and downloaded provider outputs are intentionally ignored.
+Only source, tests, documentation, canonical catalog data, validated result summaries, and
+evaluation proofs are versioned. Runtime databases, credentials, raw logs, checkpoints,
+caches, and downloads are ignored.
 
 ## Local Setup
 
@@ -153,7 +155,7 @@ Run a small verification audit:
 
 ```powershell
 python -m socbench audit Salesforce/wikitext `
-  --output-dir audit_outputs/wikitext-smoke `
+  --output-dir audit_outputs/wikitext-check `
   --max-rows 1000 `
   --output-size 500
 ```
@@ -218,8 +220,8 @@ $env:SOCBENCH_ALLOW_EXCESSIVE_REPETITION = "1"
 ```
 
 Do not set either flag until the calibration result and token/repetition math have been
-reviewed. External GPU accounts, launch metadata, generated provider kernels, raw logs,
-and credentials are operations data and do not belong in this repository.
+reviewed. Only compact validated result summaries and evaluation proofs belong in the
+repository; runtime credentials, execution code, and raw logs remain local.
 
 ## Validated Result Import
 
@@ -284,7 +286,7 @@ Services:
 - API: `http://localhost:8000`
 - PostgreSQL: private to the Compose network
 
-The API image includes the canonical catalog and validated training evidence. A new
+The API image includes the canonical catalog and validated result/proof data. A new
 PostgreSQL volume is populated automatically and idempotently. Both application images
 run as non-root users and expose health checks.
 
@@ -335,10 +337,9 @@ Invoke-WebRequest http://localhost:3000/training -UseBasicParsing
 
 ## Production Boundary
 
-Commit source, tests, documentation, the canonical catalog, and compact validated
-result/proof JSON. Never commit local databases, model checkpoints, raw provider logs,
-account names, credentials, generated launch code, downloaded provider outputs, or
-temporary audit corpora.
+Commit source, tests, documentation, the canonical catalog, compact validated result
+summaries, and evaluation proofs. Keep local databases, model checkpoints, credentials,
+execution code, raw logs, downloads, and temporary audit corpora outside the repository.
 
 The six approximately 1B-token dual-T4 campaign results are negative evidence, not
 successful model improvements. They remain visible, explicitly labeled `diverged`, and
