@@ -46,8 +46,9 @@ The recovered proxy results also include `Salesforce/wikitext`,
 
 The latest validated real-run artifacts are the v23 results for `allenai/c4`,
 `HuggingFaceCode/stack-v3-train`, `HuggingFaceFW/fineweb-edu`, and
-`NousResearch/hermes-function-calling-v1`. Each reached 999,817,216 observed tokens
-with two Tesla T4 devices and distributed world size 2. All four are retained as
+`NousResearch/hermes-function-calling-v1`, plus
+`r0b0tlab/qwen3.8-max-distillation-50k`. Each reached 999,817,216 observed tokens
+with two Tesla T4 devices and distributed world size 2. All five are retained as
 negative results because their validation curves ultimately diverged. Incomplete
 campaign runs are not published as results.
 

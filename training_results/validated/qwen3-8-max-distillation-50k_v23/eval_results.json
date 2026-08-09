@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "dataset_id": "r0b0tlab/qwen3.8-max-distillation-50k",
+  "run_type": "real",
+  "status": "complete",
+  "completed_at": "2026-08-09T06:20:35.552323+00:00",
+  "best_val_loss": 10.9678955078125,
+  "final_val_loss": 45.54032897949219,
+  "total_iters": 1907,
+  "tokens_seen": 999817216,
+  "hardware": {
+    "cuda_device_count": 2,
+    "gpu_names": ["Tesla T4", "Tesla T4"],
+    "distributed_world_size": 2,
+    "launcher": "torch.distributed.run"
+  },
+  "validation_outcome": "Validation loss diverged after the initial checkpoint; retained as a real negative result."
+}

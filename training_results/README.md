@@ -13,10 +13,10 @@ compute credentials, generated runners, or local logs.
 - `validated/*_v*/eval_results.json`: a compact evaluation proof, including explicit
   negative outcomes when a completed run diverged.
 
-The v23 C4, Stack v3, FineWeb Edu, and Hermes artifacts are completed real
-1B-token-target runs with verified two-device distributed execution. Their validation
-curves diverged, so they are kept as negative evidence rather than presented as
-successful training improvements.
+The v23 C4, Stack v3, FineWeb Edu, Hermes, and Qwen distillation artifacts are
+completed real 1B-token-target runs with verified two-device distributed execution.
+Their validation curves diverged, so they are kept as negative evidence rather than
+presented as successful training improvements.
 
 ## Recovery Import
 

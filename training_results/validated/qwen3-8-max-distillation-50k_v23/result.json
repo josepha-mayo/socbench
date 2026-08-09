@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "dataset_id": "r0b0tlab/qwen3.8-max-distillation-50k",
+  "run_type": "real",
+  "completed_at": "2026-08-09T06:20:35.552323+00:00",
+  "tokens_budget": 1000000000,
+  "n_tokens": 999817216,
+  "parameters": 124439808,
+  "max_iters": 1907,
+  "final_val_loss": 45.54032897949219,
+  "best_val_loss": 10.9678955078125,
+  "loss_curve": [
+    {"step": 0, "train_loss": null, "val_loss": 10.9678955078125},
+    {"step": 500, "train_loss": null, "val_loss": 13.897541046142578},
+    {"step": 1000, "train_loss": null, "val_loss": 26.98004722595215},
+    {"step": 1500, "train_loss": null, "val_loss": 40.23417282104492},
+    {"step": 1906, "train_loss": null, "val_loss": 45.54032897949219}
+  ],
+  "gpu": "2x Tesla T4",
+  "num_gpus": 2,
+  "distributed_world_size": 2,
+  "launcher": "torch.distributed.run",
+  "batch_size": 8,
+  "gradient_accumulation_steps": 64,
+  "effective_batch_size": 512,
+  "evidence_sha256": {
+    "hardware": "08B37CB3AF08205E2983D5C969D748A674E0D747EA14FA4E85E746D37519A326",
+    "loss_curve": "672F5431E2691AB40E186528F8A18EC486F01E2BCF9EBB831AAC2095DEBA25A3",
+    "eval_results": "756D2CF1A3547E364A0F492CF3FC37804E3F0DF2E490AD8C6F63441EBE311055",
+    "training_log": "3E1D951772BADCF568DB58FD5B8D904502ECA984B96845DC9DE7DA11334299C0"
+  }
+}
