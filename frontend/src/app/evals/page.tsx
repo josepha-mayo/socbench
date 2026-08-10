@@ -15,6 +15,7 @@ import {
   ReferenceLine,
   Label,
 } from "recharts";
+import BenchmarkAudit from "@/components/benchmark-audit";
 
 interface EvalEntry {
   key: string;
@@ -102,6 +103,7 @@ export default function EvalsPage() {
   const [sourceFilter, setSourceFilter] = useState("All");
   const [viewMode, setViewMode] = useState("Table");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [workspaceMode, setWorkspaceMode] = useState<"catalog" | "audit">("catalog");
 
   useEffect(() => {
     setLoading(true);
@@ -140,6 +142,25 @@ export default function EvalsPage() {
         </p>
       </div>
 
+      <div className="flex gap-2 mb-6 border-b border-arxiv-border">
+        <button
+          className={`px-4 py-2 text-sm font-sans font-medium border-b-2 -mb-px ${workspaceMode === "catalog" ? "border-arxiv-red text-arxiv-dark" : "border-transparent text-arxiv-gray"}`}
+          onClick={() => setWorkspaceMode("catalog")}
+        >
+          Benchmark Catalog
+        </button>
+        <button
+          className={`px-4 py-2 text-sm font-sans font-medium border-b-2 -mb-px ${workspaceMode === "audit" ? "border-arxiv-red text-arxiv-dark" : "border-transparent text-arxiv-gray"}`}
+          onClick={() => setWorkspaceMode("audit")}
+        >
+          Semantic Audit
+        </button>
+      </div>
+
+      {workspaceMode === "audit" ? (
+        <BenchmarkAudit />
+      ) : (
+        <>
       {summary && (
         <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
           <div className="stat-card">
@@ -479,6 +500,8 @@ export default function EvalsPage() {
         Sources: LiveBench (ICLR 2025), LiveCodeBench, GSM1k study, "Leak, Cheat, Repeat" (EACL 2024).
         Click any row for detailed analysis.
       </div>
+        </>
+      )}
     </div>
   );
 }

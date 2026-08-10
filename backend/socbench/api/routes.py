@@ -7,11 +7,12 @@ import math
 import time
 from typing import Annotated, Literal, Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, StringConstraints
 from sqlalchemy import func, select
 
 from socbench.db import async_session_factory
+from socbench.evals.semantic_audit import BenchmarkAuditInput
 from socbench.models import (
     DatasetRow,
     LeaderboardRow,
@@ -493,6 +494,17 @@ async def get_evals(category: Optional[str] = Query(None)):
             for r in results
         ],
     }
+
+
+@router.post("/evals/benchmark-audit")
+async def run_benchmark_audit(request: BenchmarkAuditInput):
+    """Run a bounded, reference-free semantic quality audit on a benchmark."""
+    from socbench.evals.semantic_audit import audit_benchmark
+
+    try:
+        return await audit_benchmark(request)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.get("/trending")
