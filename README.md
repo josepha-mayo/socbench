@@ -312,6 +312,16 @@ python -m socbench benchmark-audit .\benchmark.json `
   --output .\audit_outputs\benchmark-audit.json
 ```
 
+Send the same canonical JSON to the API:
+
+```powershell
+$body = Get-Content .\benchmark.json -Raw
+Invoke-RestMethod -Method Post `
+  -Uri "http://localhost:8000/api/evals/benchmark-audit" `
+  -ContentType "application/json" `
+  -Body $body
+```
+
 Optional remote enhancement:
 
 ```powershell
